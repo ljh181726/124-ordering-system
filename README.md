@@ -130,9 +130,14 @@
         let dailyOrdersData = {};
         let db, auth, appId, userId;
 
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = {
+  apiKey: "AIzaSyAPnTUu5NFB-HylHLEYkCKfT_a51XxDkb0",
+  authDomain: "ordering-system-66232.firebaseapp.com",
+  projectId: "ordering-system-66232",
+  storageBucket: "ordering-system-66232.firebasestorage.app",
+  messagingSenderId: "814499187803",
+  appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
+};
 
         // Initialize Firebase
         let app;
