@@ -116,7 +116,7 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, collection, setDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
@@ -130,6 +130,7 @@
         let dailyOrdersData = {};
         let db;
         let auth;
+        let userId;
 
         // Use global variables provided by the environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -148,39 +149,23 @@
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
-            
-            // Sign in with the custom token and then initialize listeners
-            if (initialAuthToken) {
-                signInWithCustomToken(auth, initialAuthToken)
-                    .then(() => {
-                        console.log("Signed in with custom token.");
-                        initializeListeners();
-                    })
-                    .catch((error) => {
-                        console.error("Error signing in with custom token:", error);
-                        signInAnonymously(auth)
-                            .then(() => {
-                                console.log("Signed in anonymously as a fallback.");
-                                initializeListeners();
-                            })
-                            .catch((anonError) => {
-                                console.error("Error signing in anonymously:", anonError);
-                            });
-                    });
-            } else {
-                signInAnonymously(auth)
-                    .then(() => {
-                        console.log("Signed in anonymously.");
-                        initializeListeners();
-                    })
-                    .catch((error) => {
-                        console.error("Error signing in anonymously:", error);
-                    });
-            }
-
         } catch (e) {
             console.error("Firebase Initialization Error:", e);
         }
+        
+        // Listen for authentication state changes and initialize listeners
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                initializeListeners();
+            } else {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            }
+        });
 
         // Initialize all Firestore listeners
         function initializeListeners() {
@@ -585,7 +570,7 @@
 
         // Make functions global for inline onclick
         window.submitTodayOrder = submitTodayOrder;
-
+        
     </script>
 </body>
 </html>
