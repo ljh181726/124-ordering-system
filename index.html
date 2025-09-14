@@ -116,8 +116,8 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, setDoc, query, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, setDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
         // Set Firebase debug log level
@@ -128,9 +128,12 @@
 
         let weeklyMenuData = {};
         let dailyOrdersData = {};
-        let db, auth, appId, userId;
+        let db;
+        let auth;
 
-        const firebaseConfig = {
+        // Use global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyAPnTUu5NFB-HylHLEYkCKfT_a51XxDkb0",
             authDomain: "ordering-system-66232.firebaseapp.com",
             projectId: "ordering-system-66232",
@@ -138,35 +141,48 @@
             messagingSenderId: "814499187803",
             appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
         };
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Initialize Firebase
-        let app;
         try {
-            app = initializeApp(firebaseConfig);
+            const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
+            
+            // Sign in with the custom token and then initialize listeners
+            if (initialAuthToken) {
+                signInWithCustomToken(auth, initialAuthToken)
+                    .then(() => {
+                        console.log("Signed in with custom token.");
+                        initializeListeners();
+                    })
+                    .catch((error) => {
+                        console.error("Error signing in with custom token:", error);
+                        signInAnonymously(auth)
+                            .then(() => {
+                                console.log("Signed in anonymously as a fallback.");
+                                initializeListeners();
+                            })
+                            .catch((anonError) => {
+                                console.error("Error signing in anonymously:", anonError);
+                            });
+                    });
+            } else {
+                signInAnonymously(auth)
+                    .then(() => {
+                        console.log("Signed in anonymously.");
+                        initializeListeners();
+                    })
+                    .catch((error) => {
+                        console.error("Error signing in anonymously:", error);
+                    });
+            }
+
         } catch (e) {
             console.error("Firebase Initialization Error:", e);
         }
 
-        // Firebase Authentication
-        if (auth) {
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    initializeListeners();
-                } else {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (error) {
-                        console.error("Firebase Auth Error:", error);
-                        showMessage("驗證失敗，請重新整理頁面。");
-                    }
-                }
-            });
-        }
-
-        // Initialize all Firestore listeners after authentication
+        // Initialize all Firestore listeners
         function initializeListeners() {
             initializeMenuListener();
             initializeOrderListener();
@@ -372,7 +388,6 @@
                 items: order,
                 totalPrice: total,
                 orderDay: day,
-                userId: userId,
                 timestamp: new Date()
             };
 
@@ -567,6 +582,9 @@
             document.getElementById('returnToAdminMenuFromEditor').addEventListener('click', () => toggleArea('adminMenu'));
             document.getElementById('returnToAdminMenuFromOrders').addEventListener('click', () => toggleArea('adminMenu'));
         };
+
+        // Make functions global for inline onclick
+        window.submitTodayOrder = submitTodayOrder;
 
     </script>
 </body>
