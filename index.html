@@ -117,7 +117,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, setDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, collection, setDoc, query, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
         // Set Firebase debug log level
@@ -157,6 +157,7 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 userId = user.uid;
+                console.log("Authenticated with userId:", userId);
                 initializeListeners();
             } else {
                 if (initialAuthToken) {
@@ -180,10 +181,12 @@
             onSnapshot(menuDocRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().menu) {
                     weeklyMenuData = docSnap.data().menu;
+                    console.log("Menu data loaded successfully.");
                 } else {
-                    // Populate with initial data if it doesn't exist
+                    console.log("Menu document does not exist. Populating with initial data.");
                     populateInitialData();
                 }
+                // Always render UI after data is loaded or populated
                 renderTodayMenu();
                 renderMenuEditor();
             }, (error) => {
@@ -248,7 +251,12 @@
                 }
             };
             const menuDocRef = doc(db, `artifacts/${appId}/public/data/weekly_menu/menu_data`);
-            await setDoc(menuDocRef, { menu: initialData }, { merge: true });
+            try {
+                await setDoc(menuDocRef, { menu: initialData }, { merge: true });
+                console.log("Initial menu data populated successfully.");
+            } catch (e) {
+                console.error("Error populating initial data:", e);
+            }
         }
         
         function toggleAdminLogin() {
@@ -282,6 +290,7 @@
                 document.getElementById("adminArea").classList.remove("hidden");
             } else if (area === "menuEditor") {
                 document.getElementById("menuEditorArea").classList.remove("hidden");
+                renderMenuEditor();
             } else if (area === "orderList") {
                 document.getElementById("orderListArea").classList.remove("hidden");
                 renderOrderList();
