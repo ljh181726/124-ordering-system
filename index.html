@@ -116,8 +116,8 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, setDoc, query, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, setDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
         // Set Firebase debug log level
@@ -132,42 +132,47 @@
         let auth;
         let userId;
 
-        // Use global variables provided by the environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        /*
+         * 請在此處填入你的 Firebase 專案設定資訊！
+         * 1. 前往 Firebase Console
+         * 2. 選擇你的專案
+         * 3. 點擊「新增應用程式」，選擇「網頁」
+         * 4. 複製提供的設定檔內容，並貼到下方
+         * 範例:
+         * const firebaseConfig = {
+         * apiKey: "YOUR_API_KEY",
+         * authDomain: "YOUR_AUTH_DOMAIN",
+         * projectId: "YOUR_PROJECT_ID",
+         * storageBucket: "YOUR_STORAGE_BUCKET",
+         * messagingSenderId: "YOUR_SENDER_ID",
+         * appId: "YOUR_APP_ID"
+         * };
+         */
+        const firebaseConfig = {
             apiKey: "AIzaSyAPnTUu5NFB-HylHLEYkCKfT_a51XxDkb0",
-            authDomain: "ordering-system-66232.firebaseapp.com",
-            projectId: "ordering-system-66232",
-            storageBucket: "ordering-system-66232.firebasestorage.app",
-            messagingSenderId: "814499187803",
-            appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
+          authDomain: "ordering-system-66232.firebaseapp.com",
+          projectId: "ordering-system-66232",
+          storageBucket: "ordering-system-66232.firebasestorage.app",
+          messagingSenderId: "814499187803",
+          appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
         };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Initialize Firebase
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
+            signInAnonymously(auth).then(() => {
+                userId = auth.currentUser.uid;
+                initializeListeners();
+            }).catch(error => {
+                console.error("Anonymous sign-in failed:", error);
+                showMessage("登入失敗，無法連接資料庫。");
+            });
         } catch (e) {
             console.error("Firebase Initialization Error:", e);
         }
         
-        // Listen for authentication state changes and initialize listeners
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                console.log("Authenticated with userId:", userId);
-                initializeListeners();
-            } else {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            }
-        });
-
         // Initialize all Firestore listeners
         function initializeListeners() {
             initializeMenuListener();
@@ -176,7 +181,8 @@
 
         // Initialize Firestore listener for the menu data
         function initializeMenuListener() {
-            const menuDocRef = doc(db, `artifacts/${appId}/public/data/weekly_menu/menu_data`);
+            // 注意: 將資料庫路徑更改為一個通用名稱
+            const menuDocRef = doc(db, `public_weekly_menu/menu_data`);
 
             onSnapshot(menuDocRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().menu) {
@@ -198,7 +204,7 @@
         // Initialize Firestore listener for the daily orders
         function initializeOrderListener() {
             const today = new Date().toISOString().slice(0, 10);
-            const ordersRef = collection(db, `artifacts/${appId}/public/data/daily_orders/${today}/orders`);
+            const ordersRef = collection(db, `public_daily_orders/${today}/orders`);
             const q = query(ordersRef);
 
             onSnapshot(q, (querySnapshot) => {
@@ -250,7 +256,7 @@
                     ]
                 }
             };
-            const menuDocRef = doc(db, `artifacts/${appId}/public/data/weekly_menu/menu_data`);
+            const menuDocRef = doc(db, `public_weekly_menu/menu_data`);
             try {
                 await setDoc(menuDocRef, { menu: initialData }, { merge: true });
                 console.log("Initial menu data populated successfully.");
@@ -375,7 +381,8 @@
             }
 
             const today = new Date().toISOString().slice(0, 10);
-            const orderDocRef = doc(db, `artifacts/${appId}/public/data/daily_orders/${today}/orders`, seatNumber);
+            // 注意: 將資料庫路徑更改為一個通用名稱
+            const orderDocRef = doc(db, `public_daily_orders/${today}/orders`, seatNumber);
 
             const newOrder = {
                 seatNumber: Number(seatNumber),
@@ -496,7 +503,7 @@
         }
         
         async function updateMenuInFirestore(newMenu) {
-            const menuDocRef = doc(db, `artifacts/${appId}/public/data/weekly_menu/menu_data`);
+            const menuDocRef = doc(db, `public_weekly_menu/menu_data`);
             try {
                 await setDoc(menuDocRef, { menu: newMenu });
                 showMessage("菜單已成功儲存！");
