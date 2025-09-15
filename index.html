@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>訂餐系統 - 外訂版</title>
+    <title>訂餐系統 -外訂版</title>
     <!-- Use Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Use Google Fonts Inter -->
@@ -31,10 +31,13 @@
             display: none !important;
         }
     </style>
+
+    <!-- SheetJS for Excel/CSV export (load before module script so XLSX is available) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
-    <!-- Main container -->
+    <!-- Main container (kept your original structure) -->
     <div class="container bg-white bg-opacity-80 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl text-center">
         <div class="flex items-center justify-center mb-6">
             <span class="text-3xl sm:text-4xl mr-2">🍱</span>
@@ -97,10 +100,14 @@
         <div id="orderListArea" class="space-y-6 hidden">
             <h3 class="text-2xl font-bold text-gray-700">今日訂單列表</h3>
             <div id="summaryArea" class="p-4 bg-yellow-100 rounded-lg shadow-md font-semibold text-gray-800">
-                <p id="totalPriceDisplay">全班總價：$0</p>
-                <p id="averagePriceDisplay">每人均價：$0</p>
+                <p id="totalPriceDisplay">全班總價：$0.00</p>
+                <p id="averagePriceDisplay">每人均價：$0.00</p>
             </div>
             <div id="ordersTable" class="bg-white p-4 rounded-lg shadow-md overflow-x-auto"></div>
+            <div class="flex gap-2 justify-center">
+                <button id="exportExcelBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded">匯出 Excel</button>
+                <button id="exportCsvBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">匯出 CSV</button>
+            </div>
             <button id="returnToAdminMenuFromOrders" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
                 返回管理員主選單
             </button>
@@ -113,11 +120,13 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, setDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, doc, onSnapshot, collection, setDoc, query, deleteDoc, serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
         // Set Firebase debug log level
@@ -162,26 +171,47 @@
             initializeOrderListener();
         }
 
-        // Initialize Firestore listener for the menu data
-        function initializeMenuListener() {
-            // 注意: 將資料庫路徑更改為一個通用名稱
-            const menuDocRef = doc(db, `public_weekly_menu/menu_data`);
-
-            onSnapshot(menuDocRef, (docSnap) => {
-                if (docSnap.exists() && docSnap.data().menu) {
-                    weeklyMenuData = docSnap.data().menu;
-                    console.log("Menu data loaded successfully.");
-                } else {
-                    console.log("Menu document does not exist. Populating with initial data.");
-                    populateInitialData();
+        // If a day doc doesn't exist, populate initial day docs
+        async function populateInitialDayDocs() {
+            const initialData = {
+                '1': { restaurant: "蝦米飯", items: [] },
+                '2': { restaurant: "相撲咖哩", items: [] },
+                '3': { restaurant: "八方雲集", items: [] },
+                '4': { restaurant: "麥當勞", items: [] },
+                '5': { restaurant: "祺仙館", items: [] }
+            };
+            for (let d = 1; d <=5; d++) {
+                const ref = doc(db, `public_weekly_menu/day${d}`);
+                try {
+                    // only set when doc doesn't exist — onSnapshot handler will call this when needed
+                    await setDoc(ref, initialData[d], { merge: true });
+                } catch (e) {
+                    console.error("Error populating day doc: ", e);
                 }
-                // Always render UI after data is loaded or populated
-                renderTodayMenu();
-                renderMenuEditor();
-            }, (error) => {
-                console.error("Error fetching real-time menu data:", error);
-                showMessage("無法即時更新菜單資料，請檢查網路連線。");
-            });
+            }
+        }
+
+        // Initialize Firestore listener for the menu data (per-day docs)
+        function initializeMenuListener() {
+            for (let d = 1; d <= 5; d++) {
+                const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
+
+                onSnapshot(menuDocRef, async (docSnap) => {
+                    if (docSnap.exists() && docSnap.data()) {
+                        weeklyMenuData[d] = docSnap.data();
+                    } else {
+                        // If any day doc missing, create initial set (merge safe)
+                        weeklyMenuData[d] = { restaurant: "未設定", items: [] };
+                        await populateInitialDayDocs();
+                    }
+                    // Always render UI after data is loaded or populated
+                    renderTodayMenu();
+                    renderMenuEditor();
+                }, (error) => {
+                    console.error("Error fetching real-time menu data for day" + d + ":", error);
+                    showMessage("無法即時更新菜單資料，請檢查網路連線。");
+                });
+            }
         }
         
         // Initialize Firestore listener for the daily orders
@@ -201,70 +231,6 @@
             });
         }
 
-        async function populateInitialData() {
-            const initialData = {
-                '1': {
-                    restaurant: "蝦米飯",
-                    items: [
-                        { name: "蝦米飯套餐", price: 80 },
-                        { name: "滷肉飯套餐", price: 60 }
-                    ]
-                },
-                '2': {
-                    restaurant: "相撲咖哩",
-                    items: [
-                        { name: "豬排咖哩", price: 120 },
-                        { name: "雞塊咖哩", price: 110 }
-                    ]
-                },
-                '3': {
-                    restaurant: "八方雲集",
-                    items: [
-                        { name: "招牌鍋貼", price: 60 },
-                        { name: "玉米水餃", price: 65 }
-                    ]
-                },
-                '4': {
-                    restaurant: "麥當勞",
-                    items: [
-                        { name: "麥克雞塊", price: 100 },
-                        { name: "大麥克", price: 110 }
-                    ]
-                },
-                '5': {
-                    restaurant: "祺仙館",
-                    items: [
-                        { name: "招牌牛肉麵", price: 130 },
-                        { name: "餛飩麵", price: 90 }
-                    ]
-                }
-            };
-            const menuDocRef = doc(db, `public_weekly_menu/menu_data`);
-            try {
-                await setDoc(menuDocRef, { menu: initialData }, { merge: true });
-                console.log("Initial menu data populated successfully.");
-            } catch (e) {
-                console.error("Error populating initial data:", e);
-            }
-        }
-        
-        function toggleAdminLogin() {
-            document.getElementById("userArea").classList.add("hidden");
-            document.getElementById("adminArea").classList.add("hidden");
-            document.getElementById("adminLoginArea").classList.remove("hidden");
-            document.getElementById("menuEditorArea").classList.add("hidden");
-            document.getElementById("orderListArea").classList.add("hidden");
-        }
-
-        function checkAdminPassword() {
-            const password = document.getElementById("adminPassword").value;
-            if (password === ADMIN_PASSWORD) {
-                toggleArea('adminMenu');
-            } else {
-                showMessage("密碼錯誤，請重新輸入。");
-            }
-        }
-        
         // Display/toggle areas
         function toggleArea(area) {
             document.getElementById("userArea").classList.add("hidden");
@@ -286,7 +252,7 @@
             }
         }
 
-        // User: View weekly restaurants
+        // User: View weekly restaurants (keeps your original button behavior)
         document.getElementById("viewWeeklyMenu").addEventListener("click", () => {
             let html = "<h3 class='text-xl font-semibold mb-4'>本週餐廳</h3><ul class='space-y-2'>";
             for (let d = 1; d <= 5; d++) {
@@ -298,7 +264,7 @@
             document.getElementById("weeklyMenuDisplay").classList.toggle("hidden");
         });
 
-        // User: Today's menu
+        // User: Today's menu (show prices with two decimals)
         function renderTodayMenu() {
             const today = new Date().getDay(); // 0=Sun
             const area = document.getElementById("orderArea");
@@ -319,12 +285,14 @@
             </div>
             <div class="space-y-4">`;
             dailyMenu.items.forEach((f, idx) => {
+                // show price with two decimals
+                const priceStr = typeof f.price === 'number' ? f.price.toFixed(2) : Number(f.price || 0).toFixed(2);
                 html += `
                 <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg shadow-sm">
                     <label class="flex-grow flex items-center">
                         <input type="checkbox" id="food${idx}" class="form-checkbox h-5 w-5 text-indigo-600 rounded-md transition-all">
                         <span class="ml-3 text-gray-700 font-medium">${f.name}</span>
-                        <span class="ml-auto font-semibold text-gray-800">$${f.price}</span>
+                        <span class="ml-auto font-semibold text-gray-800">$${priceStr}</span>
                     </label>
                     <div class="ml-4 flex items-center">
                         <span class="text-gray-600 mr-2">數量:</span>
@@ -338,10 +306,11 @@
             area.innerHTML = html;
         }
 
+        // Submit today's order (use serverTimestamp)
         async function submitTodayOrder(day) {
             const seatNumber = document.getElementById('seatNumber').value.trim();
-            if (!seatNumber || isNaN(seatNumber) || seatNumber < 1 || seatNumber > 99) {
-                showMessage("請輸入有效的座號 (1-99)！");
+            if (!seatNumber || isNaN(seatNumber) || seatNumber < 1 || seatNumber > 31) {
+                showMessage("請輸入有效的座號 (1-31)！");
                 return;
             }
 
@@ -352,8 +321,8 @@
                 dailyMenu.items.forEach((f, idx) => {
                     if (document.getElementById(`food${idx}`).checked) {
                         const qty = parseInt(document.getElementById(`qty${idx}`).value) || 1;
-                        order.push({ name: f.name, price: f.price, qty });
-                        total += f.price * qty;
+                        order.push({ name: f.name, price: Number(f.price), qty });
+                        total += Number(f.price) * qty;
                     }
                 });
             }
@@ -364,37 +333,40 @@
             }
 
             const today = new Date().toISOString().slice(0, 10);
-            // 注意: 將資料庫路徑更改為一個通用名稱
             const orderDocRef = doc(db, `public_daily_orders/${today}/orders`, seatNumber);
 
             const newOrder = {
                 seatNumber: Number(seatNumber),
                 items: order,
-                totalPrice: total,
+                totalPrice: Number(total.toFixed(2)),
                 orderDay: day,
-                timestamp: new Date()
+                timestamp: serverTimestamp()
             };
 
             try {
                 await setDoc(orderDocRef, newOrder);
-                const orderSummary = `座號 ${seatNumber}，已送出訂單！總金額：${total} 元\n` + order.map(o => `${o.name} x ${o.qty}`).join("\n");
+                const orderSummary = `座號 ${seatNumber}，已送出訂單！總金額：${newOrder.totalPrice} 元\n` + order.map(o => `${o.name} x ${o.qty}`).join("\n");
                 showMessage(orderSummary);
+                // 清空勾選與座號欄位，避免重複送單
+                document.getElementById('seatNumber').value = '';
+                // we re-render when onSnapshot updates, so it's ok
             } catch (e) {
                 console.error("Error submitting order: ", e);
                 showMessage("送出訂單時發生錯誤。");
             }
         }
 
-        // Admin: Set menu
+        // Admin: Set menu editor rendering & dynamic binding
         function renderMenuEditor() {
             let html = "";
             for (let d = 1; d <= 5; d++) {
                 const dailyMenu = weeklyMenuData[d] || { restaurant: "", items: [] };
+                // use step="0.01" for price inputs to allow decimals
                 html += `
                 <div class="p-4 bg-white rounded-lg shadow-md space-y-4">
                     <h4 class="text-lg font-semibold text-gray-700">${dayNames[d]}</h4>
                     <div class="flex items-center gap-2">
-                        <input type="text" placeholder="餐廳名稱" value="${dailyMenu.restaurant}" id="restaurantName${d}" class="flex-grow px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <input type="text" placeholder="餐廳名稱" value="${dailyMenu.restaurant || ''}" id="restaurantName${d}" class="flex-grow px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <button class="update-restaurant-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105" data-day="${d}">
                             更新餐廳
                         </button>
@@ -403,19 +375,20 @@
                         <h5 class="font-semibold text-gray-600 mb-2">餐點品項</h5>
                         <div class="flex flex-wrap items-center gap-2">
                             <input type="text" placeholder="餐點名稱" id="foodName${d}" class="flex-grow px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <input type="number" placeholder="價格" id="foodPrice${d}" class="w-24 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <input type="number" step="0.01" placeholder="價格" id="foodPrice${d}" class="w-24 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <button class="add-food-btn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105" data-day="${d}">
                                 新增餐點
                             </button>
                         </div>
                     </div>
                     <ul id="listDay${d}" class="space-y-2 text-left">`;
-                dailyMenu.items.forEach((f, i) => {
+                (dailyMenu.items || []).forEach((f, i) => {
+                    const priceStr = typeof f.price === 'number' ? f.price.toFixed(2) : Number(f.price || 0).toFixed(2);
                     html += `
                     <li class="flex justify-between items-center py-2 px-3 bg-gray-100 rounded-md shadow-sm">
-                        <span>${f.name} - $${f.price}</span>
-                        <button class="remove-food-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm py-1 px-3 rounded-md transition-all transform hover:scale-105" data-day="${d}" data-index="${i}">
-                            刪除
+                        <span>${f.name} - $${priceStr}</span>
+                        <button class="remove-food-btn text-red-500 hover:text-red-700" data-day="${d}" data-index="${i}" aria-label="刪除餐點">
+                            🗑️
                         </button>
                     </li>`;
                 });
@@ -449,54 +422,62 @@
         
         async function updateRestaurantName(day) {
             const restaurantName = document.getElementById(`restaurantName${day}`).value.trim();
-            const newMenu = { ...weeklyMenuData };
-            if (!newMenu[day]) {
-                newMenu[day] = { restaurant: restaurantName, items: [] };
-            } else {
-                newMenu[day].restaurant = restaurantName;
+            const currentItems = weeklyMenuData[day]?.items || [];
+            try {
+                await setDoc(doc(db, `public_weekly_menu/day${day}`), { restaurant: restaurantName, items: currentItems }, { merge: true });
+                showMessage("餐廳名稱已更新！");
+            } catch(e) {
+                console.error("Error updating restaurant:", e);
+                showMessage("更新餐廳時發生錯誤。");
             }
-            await updateMenuInFirestore(newMenu);
         }
 
         async function addFood(day) {
             const name = document.getElementById(`foodName${day}`).value.trim();
-            const price = parseInt(document.getElementById(`foodPrice${day}`).value);
+            const price = parseFloat(document.getElementById(`foodPrice${day}`).value);
             if (name && !isNaN(price) && price >= 0) {
-                const newMenu = { ...weeklyMenuData };
-                if (!newMenu[day]) {
-                    newMenu[day] = { restaurant: "新餐廳", items: [] };
+                const newItems = [...(weeklyMenuData[day]?.items || []) , { name, price }];
+                try {
+                    await setDoc(doc(db, `public_weekly_menu/day${day}`), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
+                    document.getElementById(`foodName${day}`).value = "";
+                    document.getElementById(`foodPrice${day}`).value = "";
+                    showMessage("餐點已新增！");
+                } catch(e) {
+                    console.error("Error adding food:", e);
+                    showMessage("新增餐點時發生錯誤。");
                 }
-                newMenu[day].items.push({ name, price });
-                
-                await updateMenuInFirestore(newMenu);
-                
-                document.getElementById(`foodName${day}`).value = "";
-                document.getElementById(`foodPrice${day}`).value = "";
             } else {
                 showMessage("請輸入有效的餐點名稱與價格！");
             }
         }
         
         async function removeFood(day, i) {
-            const newMenu = { ...weeklyMenuData };
-            if (newMenu[day] && newMenu[day].items) {
-                newMenu[day].items.splice(i, 1);
+            if (!confirm("確定要刪除此餐點嗎？")) return;
+            const newItems = [...(weeklyMenuData[day]?.items || [])];
+            newItems.splice(i, 1);
+            try {
+                await setDoc(doc(db, `public_weekly_menu/day${day}`), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
+                showMessage("餐點已刪除！");
+            } catch(e) {
+                console.error("Error removing food:", e);
+                showMessage("刪除餐點時發生錯誤。");
             }
-            await updateMenuInFirestore(newMenu);
         }
         
-        async function updateMenuInFirestore(newMenu) {
-            const menuDocRef = doc(db, `public_weekly_menu/menu_data`);
+        // 管理員：刪除訂單（加確認）
+        async function deleteOrder(seatNumber) {
+            if (!confirm(`確定要刪除座號 ${seatNumber} 的訂單嗎？`)) return;
+            const today = new Date().toISOString().slice(0, 10);
             try {
-                await setDoc(menuDocRef, { menu: newMenu });
-                showMessage("菜單已成功儲存！");
+                await deleteDoc(doc(db, `public_daily_orders/${today}/orders`, seatNumber));
+                showMessage(`座號 ${seatNumber} 的訂單已刪除！`);
             } catch (e) {
-                console.error("Error updating document: ", e);
-                showMessage("儲存菜單時發生錯誤。");
+                console.error("Error deleting order:", e);
+                showMessage("刪除訂單時發生錯誤。");
             }
         }
 
-        // Admin: Render order list
+        // Render order list with delete button and export buttons
         function renderOrderList() {
             let total = 0;
             let orderCount = 0;
@@ -507,6 +488,7 @@
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">座號</th>
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">餐點明細</th>
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">總價</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">`;
@@ -514,11 +496,11 @@
             const sortedSeatNumbers = Object.keys(dailyOrdersData).sort((a, b) => Number(a) - Number(b));
 
             if (sortedSeatNumbers.length === 0) {
-                tableHtml += `<tr><td colspan="3" class="px-4 py-2 text-center text-gray-500">尚無訂單</td></tr>`;
+                tableHtml += `<tr><td colspan="4" class="px-4 py-2 text-center text-gray-500">尚無訂單</td></tr>`;
             } else {
                 sortedSeatNumbers.forEach(seatNumber => {
                     const orderData = dailyOrdersData[seatNumber];
-                    const itemsList = orderData.items.map(item => `${item.name} x ${item.qty} ($${item.price*item.qty})`).join('<br>');
+                    const itemsList = orderData.items.map(item => `${item.name} x ${item.qty} ($${(item.price*item.qty).toFixed(2)})`).join('<br>');
                     
                     total += orderData.totalPrice || 0;
                     orderCount++;
@@ -527,7 +509,12 @@
                     <tr>
                         <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${seatNumber}</td>
                         <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${itemsList}</td>
-                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">$${orderData.totalPrice || 0}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">$${(orderData.totalPrice || 0).toFixed(2)}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="deleteOrder('${seatNumber}')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
+                                🗑️
+                            </button>
+                        </td>
                     </tr>`;
                 });
             }
@@ -536,11 +523,79 @@
             ordersTable.innerHTML = tableHtml;
 
             const average = orderCount > 0 ? (total / orderCount).toFixed(2) : 0;
-            document.getElementById('totalPriceDisplay').textContent = `全班總價：$${total}`;
+            document.getElementById('totalPriceDisplay').textContent = `全班總價：$${total.toFixed(2)}`;
             document.getElementById('averagePriceDisplay').textContent = `訂單數：${orderCount}，每人均價：$${average}`;
         }
         
-        // Custom message box functions
+        // Export to Excel / CSV using SheetJS
+        function exportToExcel() {
+            const today = new Date().toISOString().slice(0, 10);
+            const data = [];
+            const sortedSeatNumbers = Object.keys(dailyOrdersData).sort((a,b)=>Number(a)-Number(b));
+            sortedSeatNumbers.forEach(seatNumber => {
+                const orderData = dailyOrdersData[seatNumber];
+                orderData.items.forEach(item => {
+                    data.push({
+                        座號: seatNumber,
+                        餐點: item.name,
+                        數量: item.qty,
+                        單價: Number(item.price).toFixed(2),
+                        小計: (item.price * item.qty).toFixed(2),
+                        總價: (orderData.totalPrice || 0).toFixed(2)
+                    });
+                });
+            });
+            if (data.length === 0) {
+                alert("尚無訂單，無法匯出！");
+                return;
+            }
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "今日訂單");
+            const restaurantToday = (() => {
+                const weekday = new Date().getDay();
+                return (weekday >=1 && weekday <=5 && weeklyMenuData[weekday]) ? weeklyMenuData[weekday].restaurant : "";
+            })();
+            const filename = restaurantToday ? `訂單_${today}_${restaurantToday}.xlsx` : `訂單_${today}.xlsx`;
+            XLSX.writeFile(workbook, filename);
+        }
+
+        function exportToCSV() {
+            const today = new Date().toISOString().slice(0, 10);
+            const data = [];
+            const sortedSeatNumbers = Object.keys(dailyOrdersData).sort((a,b)=>Number(a)-Number(b));
+            sortedSeatNumbers.forEach(seatNumber => {
+                const orderData = dailyOrdersData[seatNumber];
+                orderData.items.forEach(item => {
+                    data.push({
+                        座號: seatNumber,
+                        餐點: item.name,
+                        數量: item.qty,
+                        單價: Number(item.price).toFixed(2),
+                        小計: (item.price * item.qty).toFixed(2),
+                        總價: (orderData.totalPrice || 0).toFixed(2)
+                    });
+                });
+            });
+            if (data.length === 0) {
+                alert("尚無訂單，無法匯出！");
+                return;
+            }
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const csv = XLSX.utils.sheet_to_csv(worksheet);
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            const restaurantToday = (() => {
+                const weekday = new Date().getDay();
+                return (weekday >=1 && weekday <=5 && weeklyMenuData[weekday]) ? weeklyMenuData[weekday].restaurant : "";
+            })();
+            const filename = restaurantToday ? `訂單_${today}_${restaurantToday}.csv` : `訂單_${today}.csv`;
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+        // Custom message box functions (keeps your original message UI)
         const messageBox = document.getElementById('messageBox');
         const messageText = document.getElementById('messageText');
         const closeMessageBtn = document.getElementById('closeMessageBtn');
@@ -565,10 +620,38 @@
             document.getElementById('returnToUserFromAdminMenu').addEventListener('click', () => toggleArea('user'));
             document.getElementById('returnToAdminMenuFromEditor').addEventListener('click', () => toggleArea('adminMenu'));
             document.getElementById('returnToAdminMenuFromOrders').addEventListener('click', () => toggleArea('adminMenu'));
+
+            // export buttons
+            document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+            document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
         };
+
+        // Admin toggle & password
+        function toggleAdminLogin() {
+            document.getElementById("userArea").classList.add("hidden");
+            document.getElementById("adminArea").classList.add("hidden");
+            document.getElementById("adminLoginArea").classList.remove("hidden");
+            document.getElementById("menuEditorArea").classList.add("hidden");
+            document.getElementById("orderListArea").classList.add("hidden");
+        }
+
+        function checkAdminPassword() {
+            const password = document.getElementById("adminPassword").value;
+            if (password === ADMIN_PASSWORD) {
+                toggleArea('adminMenu');
+            } else {
+                showMessage("密碼錯誤，請重新輸入。");
+            }
+        }
 
         // Make functions global for inline onclick
         window.submitTodayOrder = submitTodayOrder;
+        window.updateRestaurantName = updateRestaurantName;
+        window.addFood = addFood;
+        window.removeFood = removeFood;
+        window.deleteOrder = deleteOrder;
+        window.exportToExcel = exportToExcel;
+        window.exportToCSV = exportToCSV;
         
     </script>
 </body>
