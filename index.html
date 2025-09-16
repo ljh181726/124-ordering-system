@@ -122,6 +122,7 @@
 
     <!-- Firebase SDKs and App Script -->
     <script type="module">
+        import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
@@ -192,27 +193,44 @@
         }
 
         // Initialize Firestore listener for the menu data (per-day docs)
-        function initializeMenuListener() {
-            for (let d = 1; d <= 5; d++) {
-                const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
+function initializeMenuListener() {
+    // 監聽 public_weekly_menu/menu_data 文檔
+    const menuDocRef = doc(db, "public_weekly_menu", "menu_data");
 
-                onSnapshot(menuDocRef, async (docSnap) => {
-                    if (docSnap.exists() && docSnap.data()) {
-                        weeklyMenuData[d] = docSnap.data();
-                    } else {
-                        // If any day doc missing, create initial set (merge safe)
-                        weeklyMenuData[d] = { restaurant: "未設定", items: [] };
-                        await populateInitialDayDocs();
-                    }
-                    // Always render UI after data is loaded or populated
-                    renderTodayMenu();
-                    renderMenuEditor();
-                }, (error) => {
-                    console.error("Error fetching real-time menu data for day" + d + ":", error);
-                    showMessage("無法即時更新菜單資料，請檢查網路連線。");
-                });
+    onSnapshot(menuDocRef, (docSnap) => {
+        if (docSnap.exists() && docSnap.data() && docSnap.data().menu) {
+            const data = docSnap.data().menu;
+            
+            // 重置 weeklyMenuData，並從 Firebase 資料中提取
+            weeklyMenuData = {};
+            for (let d = 1; d <= 5; d++) {
+                // 檢查是否有對應的 dailyMenu 資料，如果沒有則設定為預設值
+                const dailyMenu = data[d] || { restaurant: "未設定", items: [] };
+                weeklyMenuData[d] = {
+                    restaurant: dailyMenu.restaurant || "未設定",
+                    items: dailyMenu.items || []
+                };
             }
+        } else {
+            console.warn("menu_data 文檔不存在或結構無效，使用預設值。");
+            // 如果文檔不存在，設定一個空的預設值，避免程式出錯
+            weeklyMenuData = {
+                '1': { restaurant: "未設定", items: [] },
+                '2': { restaurant: "未設定", items: [] },
+                '3': { restaurant: "未設定", items: [] },
+                '4': { restaurant: "未設定", items: [] },
+                '5': { restaurant: "未設定", items: [] }
+            };
         }
+
+        // 重新渲染使用者與管理員介面
+        renderTodayMenu();
+        renderMenuEditor();
+    }, (error) => {
+        console.error("即時監聽菜單資料失敗：", error);
+        showMessage("無法即時更新菜單資料，請檢查網路連線。");
+    });
+}
         
         // Initialize Firestore listener for the daily orders
         function initializeOrderListener() {
