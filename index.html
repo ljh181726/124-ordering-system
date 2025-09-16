@@ -149,91 +149,70 @@
   appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
 };
 
-        
         // Initialize Firebase
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
-function initializeListeners() {
-    initializeMenuListener();
-    initializeOrderListener();
-}
-
-signInAnonymously(auth).then(() => {
-    userId = auth.currentUser.uid;
-    initializeListeners();
-}).catch(error => {
-    console.error("Anonymous sign-in failed:", error);
-    showMessage("登入失敗，無法連接資料庫。");
-});
-
-function initializeMenuListener() {
-    for (let d = 1; d <= 5; d++) {
-        const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
-        onSnapshot(menuDocRef, async (docSnap) => {
-            if (docSnap.exists() && docSnap.data()) {
-                weeklyMenuData[d] = docSnap.data();
-            } else {
-                weeklyMenuData[d] = { restaurant: "未設定", items: [] };
-                await populateInitialDayDocs();
-            }
-            renderTodayMenu();
-            renderMenuEditor();
-        }, (error) => {
-            console.error("Error fetching real-time menu data for day" + d + ":", error);
-            showMessage("無法即時更新菜單資料，請檢查網路連線。");
-        });
-    }
-}
-
-function initializeOrderListener() {
-    const today = new Date().toISOString().slice(0, 10);
-    const ordersRef = collection(db, `public_daily_orders/${today}/orders`);
-    const q = query(ordersRef);
-
-    onSnapshot(q, (querySnapshot) => {
-        dailyOrdersData = {};
-        querySnapshot.forEach((doc) => {
-            dailyOrdersData[doc.id] = doc.data();
-        });
-        renderOrderList();
-    }, (error) => {
-        console.error("Error fetching real-time orders:", error);
-    });
-}
+            signInAnonymously(auth).then(() => {
+                userId = auth.currentUser.uid;
+                initializeListeners();
+            }).catch(error => {
+                console.error("Anonymous sign-in failed:", error);
+                showMessage("登入失敗，無法連接資料庫。");
+            });
+        } catch (e) {
+            console.error("Firebase Initialization Error:", e);
+        }
+        
         // Initialize all Firestore listeners
-      function initializeMenuListener() {
-    for (let d = 1; d <= 5; d++) {
-        const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
+        function initializeListeners() {
+            initializeMenuListener();
+            initializeOrderListener();
+        }
 
-        onSnapshot(menuDocRef, async (docSnap) => {
-            if (docSnap.exists() && docSnap.data()) {
-                weeklyMenuData[d] = docSnap.data();
-            } else {
-                weeklyMenuData[d] = { restaurant: "未設定", items: [] };
-                await populateInitialDayDocs();
-            }
-            try {
-                const menuDoc = await getDoc(doc(db, `menu_data/menu/${d}`));
-                if (menuDoc.exists()) {
-                    weeklyMenuData[d].items = menuDoc.data().items || [];
-                } else {
-                    weeklyMenuData[d].items = [];
+        // If a day doc doesn't exist, populate initial day docs
+        async function populateInitialDayDocs() {
+            const initialData = {
+                '1': { restaurant: "蝦米飯", items: [] },
+                '2': { restaurant: "相撲咖哩", items: [] },
+                '3': { restaurant: "八方雲集", items: [] },
+                '4': { restaurant: "麥當勞", items: [] },
+                '5': { restaurant: "祺仙館", items: [] }
+            };
+            for (let d = 1; d <=5; d++) {
+                const ref = doc(db, `public_weekly_menu/day${d}`);
+                try {
+                    // only set when doc doesn't exist — onSnapshot handler will call this when needed
+                    await setDoc(ref, initialData[d], { merge: true });
+                } catch (e) {
+                    console.error("Error populating day doc: ", e);
                 }
-            } catch (e) {
-                console.error(`抓 menu_data/menu/${d} 資料失敗：`, e);
-                weeklyMenuData[d].items = [];
             }
+        }
 
-            renderTodayMenu();
-            renderMenuEditor();
-        }, (error) => {
-            console.error(`監聽 public_weekly_menu/day${d} 時出錯：`, error);
-            showMessage("無法即時更新菜單資料，請檢查網路連線。");
-        });
-    }
-}
+        // Initialize Firestore listener for the menu data (per-day docs)
+        function initializeMenuListener() {
+            for (let d = 1; d <= 5; d++) {
+                const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
+
+                onSnapshot(menuDocRef, async (docSnap) => {
+                    if (docSnap.exists() && docSnap.data()) {
+                        weeklyMenuData[d] = docSnap.data();
+                    } else {
+                        // If any day doc missing, create initial set (merge safe)
+                        weeklyMenuData[d] = { restaurant: "未設定", items: [] };
+                        await populateInitialDayDocs();
+                    }
+                    // Always render UI after data is loaded or populated
+                    renderTodayMenu();
+                    renderMenuEditor();
+                }, (error) => {
+                    console.error("Error fetching real-time menu data for day" + d + ":", error);
+                    showMessage("無法即時更新菜單資料，請檢查網路連線。");
+                });
+            }
+        }
         
         // Initialize Firestore listener for the daily orders
         function initializeOrderListener() {
