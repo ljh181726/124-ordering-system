@@ -157,6 +157,24 @@
             auth = getAuth(app);
             signInAnonymously(auth).then(() => {
                 userId = auth.currentUser.uid;
+    const menuDocRef = doc(db, "menu_data/menu");
+    onSnapshot(menuDocRef, docSnap => {
+      if (docSnap.exists() && docSnap.data().items) {
+        weeklyMenuData = docSnap.data().items;
+      }
+      renderMenuEditor();
+      renderTodayMenu();
+    });
+
+    // 🔹 監聽今日訂單
+    const today = new Date().toISOString().slice(0,10);
+    const ordersRef = collection(db, `public_orders/${today}/orders`);
+    onSnapshot(ordersRef, snapshot => {
+      dailyOrdersData = {};
+      snapshot.forEach(doc => { dailyOrdersData[doc.id] = doc.data(); });
+      renderOrderList();
+    });
+
             }).catch(error => {
                 console.error("Anonymous sign-in failed:", error);
                 showMessage("登入失敗，無法連接資料庫。");
