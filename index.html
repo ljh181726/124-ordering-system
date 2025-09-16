@@ -181,7 +181,7 @@
                 '5': { restaurant: "祺仙館", items: [] }
             };
             for (let d = 1; d <=5; d++) {
-                const ref = doc(db, public_weekly_menu/day${d});
+                const ref = doc(db, `public_weekly_menu/day${d}`);
                 try {
                     // only set when doc doesn't exist — onSnapshot handler will call this when needed
                     await setDoc(ref, initialData[d], { merge: true });
@@ -194,7 +194,7 @@
         // Initialize Firestore listener for the menu data (per-day docs)
         function initializeMenuListener() {
             for (let d = 1; d <= 5; d++) {
-                const menuDocRef = doc(db, public_weekly_menu/day${d});
+                const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
 
                 onSnapshot(menuDocRef, async (docSnap) => {
                     if (docSnap.exists() && docSnap.data()) {
@@ -217,7 +217,7 @@
         // Initialize Firestore listener for the daily orders
         function initializeOrderListener() {
             const today = new Date().toISOString().slice(0, 10);
-            const ordersRef = collection(db, public_daily_orders/${today}/orders);
+            const ordersRef = collection(db, `public_daily_orders/${today}/orders`);
             const q = query(ordersRef);
 
             onSnapshot(q, (querySnapshot) => {
@@ -257,7 +257,7 @@
             let html = "<h3 class='text-xl font-semibold mb-4'>本週餐廳</h3><ul class='space-y-2'>";
             for (let d = 1; d <= 5; d++) {
                 const restaurantName = weeklyMenuData[d] ? weeklyMenuData[d].restaurant : "未設定";
-                html += <li class="border-b border-gray-200 pb-2">${dayNames[d]}：<span class="font-medium">${restaurantName}</span></li>;
+                html += `<li class="border-b border-gray-200 pb-2">${dayNames[d]}：<span class="font-medium">${restaurantName}</span></li>`;
             }
             html += "</ul>";
             document.getElementById("weeklyMenuDisplay").innerHTML = html;
@@ -274,20 +274,20 @@
             }
             const dailyMenu = weeklyMenuData[today];
             if (!dailyMenu || !dailyMenu.items || dailyMenu.items.length === 0) {
-                area.innerHTML = <p class="text-red-500 font-semibold">${dayNames[today]} 尚未設定餐點</p>;
+                area.innerHTML = `<p class="text-red-500 font-semibold">${dayNames[today]} 尚未設定餐點</p>`;
                 return;
             }
 
-            let html = <h3 class="text-2xl font-bold text-gray-700 mb-4">今日餐點：${dailyMenu.restaurant}</h3>
+            let html = `<h3 class="text-2xl font-bold text-gray-700 mb-4">今日餐點：${dailyMenu.restaurant}</h3>
             <div class="mb-4">
                 <label for="seatNumber" class="block text-gray-700 font-semibold mb-1">請輸入座號：</label>
                 <input type="number" id="seatNumber" placeholder="座號" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
-            <div class="space-y-4">;
+            <div class="space-y-4">`;
             dailyMenu.items.forEach((f, idx) => {
                 // show price with two decimals
                 const priceStr = typeof f.price === 'number' ? f.price.toFixed(2) : Number(f.price || 0).toFixed(2);
-                html += 
+                html += `
                 <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg shadow-sm">
                     <label class="flex-grow flex items-center">
                         <input type="checkbox" id="food${idx}" class="form-checkbox h-5 w-5 text-indigo-600 rounded-md transition-all">
@@ -298,11 +298,11 @@
                         <span class="text-gray-600 mr-2">數量:</span>
                         <input type="number" min="1" value="1" id="qty${idx}" class="w-16 px-2 py-1 text-center border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
-                </div>;
+                </div>`;
             });
-            html += </div><button onclick="submitTodayOrder(${today})" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            html += `</div><button onclick="submitTodayOrder(${today})" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
                 送出訂單
-            </button>;
+            </button>`;
             area.innerHTML = html;
         }
 
@@ -319,8 +319,8 @@
             let total = 0;
             if (dailyMenu && dailyMenu.items) {
                 dailyMenu.items.forEach((f, idx) => {
-                    if (document.getElementById(food${idx}).checked) {
-                        const qty = parseInt(document.getElementById(qty${idx}).value) || 1;
+                    if (document.getElementById(`food${idx}`).checked) {
+                        const qty = parseInt(document.getElementById(`qty${idx}`).value) || 1;
                         order.push({ name: f.name, price: Number(f.price), qty });
                         total += Number(f.price) * qty;
                     }
@@ -333,7 +333,7 @@
             }
 
             const today = new Date().toISOString().slice(0, 10);
-            const orderDocRef = doc(db, public_daily_orders/${today}/orders, seatNumber);
+            const orderDocRef = doc(db, `public_daily_orders/${today}/orders`, seatNumber);
 
             const newOrder = {
                 seatNumber: Number(seatNumber),
@@ -345,7 +345,7 @@
 
             try {
                 await setDoc(orderDocRef, newOrder);
-                const orderSummary = 座號 ${seatNumber}，已送出訂單！總金額：${newOrder.totalPrice} 元\n + order.map(o => ${o.name} x ${o.qty}).join("\n");
+                const orderSummary = `座號 ${seatNumber}，已送出訂單！總金額：${newOrder.totalPrice} 元\n` + order.map(o => `${o.name} x ${o.qty}`).join("\n");
                 showMessage(orderSummary);
                 // 清空勾選與座號欄位，避免重複送單
                 document.getElementById('seatNumber').value = '';
@@ -362,7 +362,7 @@
             for (let d = 1; d <= 5; d++) {
                 const dailyMenu = weeklyMenuData[d] || { restaurant: "", items: [] };
                 // use step="0.01" for price inputs to allow decimals
-                html += 
+                html += `
                 <div class="p-4 bg-white rounded-lg shadow-md space-y-4">
                     <h4 class="text-lg font-semibold text-gray-700">${dayNames[d]}</h4>
                     <div class="flex items-center gap-2">
@@ -381,18 +381,18 @@
                             </button>
                         </div>
                     </div>
-                    <ul id="listDay${d}" class="space-y-2 text-left">;
+                    <ul id="listDay${d}" class="space-y-2 text-left">`;
                 (dailyMenu.items || []).forEach((f, i) => {
                     const priceStr = typeof f.price === 'number' ? f.price.toFixed(2) : Number(f.price || 0).toFixed(2);
-                    html += 
+                    html += `
                     <li class="flex justify-between items-center py-2 px-3 bg-gray-100 rounded-md shadow-sm">
                         <span>${f.name} - $${priceStr}</span>
                         <button class="remove-food-btn text-red-500 hover:text-red-700" data-day="${d}" data-index="${i}" aria-label="刪除餐點">
                             🗑️
                         </button>
-                    </li>;
+                    </li>`;
                 });
-                html += </ul></div>;
+                html += `</ul></div>`;
             }
             document.getElementById("dayMenus").innerHTML = html;
 
@@ -421,10 +421,10 @@
         }
         
         async function updateRestaurantName(day) {
-            const restaurantName = document.getElementById(restaurantName${day}).value.trim();
+            const restaurantName = document.getElementById(`restaurantName${day}`).value.trim();
             const currentItems = weeklyMenuData[day]?.items || [];
             try {
-                await setDoc(doc(db, public_weekly_menu/day${day}), { restaurant: restaurantName, items: currentItems }, { merge: true });
+                await setDoc(doc(db, `public_weekly_menu/day${day}`), { restaurant: restaurantName, items: currentItems }, { merge: true });
                 showMessage("餐廳名稱已更新！");
             } catch(e) {
                 console.error("Error updating restaurant:", e);
@@ -433,14 +433,14 @@
         }
 
         async function addFood(day) {
-            const name = document.getElementById(foodName${day}).value.trim();
-            const price = parseFloat(document.getElementById(foodPrice${day}).value);
+            const name = document.getElementById(`foodName${day}`).value.trim();
+            const price = parseFloat(document.getElementById(`foodPrice${day}`).value);
             if (name && !isNaN(price) && price >= 0) {
                 const newItems = [...(weeklyMenuData[day]?.items || []) , { name, price }];
                 try {
-                    await setDoc(doc(db, public_weekly_menu/day${day}), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
-                    document.getElementById(foodName${day}).value = "";
-                    document.getElementById(foodPrice${day}).value = "";
+                    await setDoc(doc(db, `public_weekly_menu/day${day}`), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
+                    document.getElementById(`foodName${day}`).value = "";
+                    document.getElementById(`foodPrice${day}`).value = "";
                     showMessage("餐點已新增！");
                 } catch(e) {
                     console.error("Error adding food:", e);
@@ -456,7 +456,7 @@
             const newItems = [...(weeklyMenuData[day]?.items || [])];
             newItems.splice(i, 1);
             try {
-                await setDoc(doc(db, public_weekly_menu/day${day}), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
+                await setDoc(doc(db, `public_weekly_menu/day${day}`), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
                 showMessage("餐點已刪除！");
             } catch(e) {
                 console.error("Error removing food:", e);
@@ -466,11 +466,11 @@
         
         // 管理員：刪除訂單（加確認）
         async function deleteOrder(seatNumber) {
-            if (!confirm(確定要刪除座號 ${seatNumber} 的訂單嗎？)) return;
+            if (!confirm(`確定要刪除座號 ${seatNumber} 的訂單嗎？`)) return;
             const today = new Date().toISOString().slice(0, 10);
             try {
-                await deleteDoc(doc(db, public_daily_orders/${today}/orders, seatNumber));
-                showMessage(座號 ${seatNumber} 的訂單已刪除！);
+                await deleteDoc(doc(db, `public_daily_orders/${today}/orders`, seatNumber));
+                showMessage(`座號 ${seatNumber} 的訂單已刪除！`);
             } catch (e) {
                 console.error("Error deleting order:", e);
                 showMessage("刪除訂單時發生錯誤。");
@@ -482,7 +482,7 @@
             let total = 0;
             let orderCount = 0;
             const ordersTable = document.getElementById('ordersTable');
-            let tableHtml = <table class="min-w-full divide-y divide-gray-200">
+            let tableHtml = `<table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">座號</th>
@@ -491,21 +491,21 @@
                                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                                     </tr>
                                 </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">;
+                                <tbody class="bg-white divide-y divide-gray-200">`;
 
             const sortedSeatNumbers = Object.keys(dailyOrdersData).sort((a, b) => Number(a) - Number(b));
 
             if (sortedSeatNumbers.length === 0) {
-                tableHtml += <tr><td colspan="4" class="px-4 py-2 text-center text-gray-500">尚無訂單</td></tr>;
+                tableHtml += `<tr><td colspan="4" class="px-4 py-2 text-center text-gray-500">尚無訂單</td></tr>`;
             } else {
                 sortedSeatNumbers.forEach(seatNumber => {
                     const orderData = dailyOrdersData[seatNumber];
-                    const itemsList = orderData.items.map(item => ${item.name} x ${item.qty} ($${(item.price*item.qty).toFixed(2)})).join('<br>');
+                    const itemsList = orderData.items.map(item => `${item.name} x ${item.qty} ($${(item.price*item.qty).toFixed(2)})`).join('<br>');
                     
                     total += orderData.totalPrice || 0;
                     orderCount++;
 
-                    tableHtml += 
+                    tableHtml += `
                     <tr>
                         <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${seatNumber}</td>
                         <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${itemsList}</td>
@@ -515,16 +515,16 @@
                                 🗑️
                             </button>
                         </td>
-                    </tr>;
+                    </tr>`;
                 });
             }
             
-            tableHtml += </tbody></table>;
+            tableHtml += `</tbody></table>`;
             ordersTable.innerHTML = tableHtml;
 
             const average = orderCount > 0 ? (total / orderCount).toFixed(2) : 0;
-            document.getElementById('totalPriceDisplay').textContent = 全班總價：$${total.toFixed(2)};
-            document.getElementById('averagePriceDisplay').textContent = 訂單數：${orderCount}，每人均價：$${average};
+            document.getElementById('totalPriceDisplay').textContent = `全班總價：$${total.toFixed(2)}`;
+            document.getElementById('averagePriceDisplay').textContent = `訂單數：${orderCount}，每人均價：$${average}`;
         }
         
         // Export to Excel / CSV using SheetJS
@@ -556,7 +556,7 @@
                 const weekday = new Date().getDay();
                 return (weekday >=1 && weekday <=5 && weeklyMenuData[weekday]) ? weeklyMenuData[weekday].restaurant : "";
             })();
-            const filename = restaurantToday ? 訂單_${today}_${restaurantToday}.xlsx : 訂單_${today}.xlsx;
+            const filename = restaurantToday ? `訂單_${today}_${restaurantToday}.xlsx` : `訂單_${today}.xlsx`;
             XLSX.writeFile(workbook, filename);
         }
 
@@ -589,7 +589,7 @@
                 const weekday = new Date().getDay();
                 return (weekday >=1 && weekday <=5 && weeklyMenuData[weekday]) ? weeklyMenuData[weekday].restaurant : "";
             })();
-            const filename = restaurantToday ? 訂單_${today}_${restaurantToday}.csv : 訂單_${today}.csv;
+            const filename = restaurantToday ? `訂單_${today}_${restaurantToday}.csv` : `訂單_${today}.csv`;
             link.href = URL.createObjectURL(blob);
             link.download = filename;
             link.click();
