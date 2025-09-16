@@ -1,285 +1,426 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <title>學餐系統</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Firebase v11 模組化 -->
-  <script type="module">
-    // 從官方 CDN 載入需要的 Firebase 套件
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import { 
-      getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, arrayRemove, 
-      onSnapshot, collection, getDocs, serverTimestamp 
-    } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-    // ✅ Firebase 專案設定
-    const firebaseConfig = {
-      apiKey: "AIzaSyCXrInE1Fg1k1pMvIdTOQtXsnJbi-T1ROw",
-      authDomain: "school-lunch-649ef.firebaseapp.com",
-      projectId: "school-lunch-649ef",
-      storageBucket: "school-lunch-649ef.appspot.com",
-      messagingSenderId: "533107630740",
-      appId: "1:533107630740:web:aaa3900ea4af2cb4a3949a"
-    };
-
-    // 初始化 Firebase
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    // ✅ 全域變數
-    const ADMIN_PASSWORD = "1234"; // 管理員密碼
-    let weeklyMenuData = {};       // 暫存每週菜單
-    let todayOrders = {};          // 暫存今日訂單
-
-    // ==============================
-    // 🚀 登入 Firebase (匿名登入)
-    // ==============================
-    signInAnonymously(auth)
-      .then(() => console.log("匿名登入成功"))
-      .catch(err => console.error("登入失敗", err));
-
-    // ==============================
-    // 🚀 畫面區塊切換
-    // ==============================
-    function toggleArea(id) {
-      document.querySelectorAll(".area").forEach(area => area.classList.add("hidden"));
-      document.getElementById(id).classList.remove("hidden");
-    }
-    window.toggleArea = toggleArea;
-
-    // ==============================
-    // 🚀 訊息彈窗 (Modal)
-    // ==============================
-    function showMessage(msg) {
-      document.getElementById("messageText").innerText = msg;
-      document.getElementById("messageBox").classList.remove("hidden");
-    }
-    window.showMessage = showMessage;
-
-    document.getElementById("closeMessageBtn").addEventListener("click", () => {
-      document.getElementById("messageBox").classList.add("hidden");
-    });
-
-    // ==============================
-    // 🚀 建立一週 (day1~day5) 初始文件
-    // ==============================
-    async function populateInitialDayDocs() {
-      for (let d = 1; d <= 5; d++) {
-        const ref = doc(db, "public_weekly_menu", `day${d}`);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          await setDoc(ref, { 
-            restaurant: "", 
-            items: [] 
-          });
-          console.log(`建立初始 doc: day${d}`);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>訂餐系統 -外訂版</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #f5f7fa, #c3cfe2, #d9a7c7, #fffcdc);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
         }
-      }
-    }
-
-    // ==============================
-    // 🚀 初始化監聽菜單 (每一天)
-    // ==============================
-    function initializeMenuListener() {
-      for (let d = 1; d <= 5; d++) {
-        const ref = doc(db, "public_weekly_menu", `day${d}`);
-        onSnapshot(ref, snapshot => {
-          if (snapshot.exists()) {
-            weeklyMenuData[d] = snapshot.data();
-            renderMenuEditor();
-            renderTodayMenu();
-          }
-        });
-      }
-    }
-
-    // ==============================
-    // 🚀 管理員：渲染每週菜單編輯器
-    // ==============================
-    function renderMenuEditor() {
-      const container = document.getElementById("menuEditorArea");
-      container.innerHTML = "";
-      for (let d = 1; d <= 5; d++) {
-        const data = weeklyMenuData[d] || { restaurant: "", items: [] };
-        let html = `
-          <div class="border p-3 my-2 rounded bg-white shadow">
-            <h3 class="font-bold">星期${d}</h3>
-            <label>餐廳名稱：
-              <input class="border p-1" id="restaurant_day${d}" value="${data.restaurant}">
-            </label>
-            <button class="bg-blue-500 text-white px-2 py-1 rounded ml-2" onclick="updateRestaurantName(${d})">更新</button>
-            <ul class="mt-2">
-        `;
-        data.items.forEach((item, i) => {
-          html += `<li>${item.name} $${item.price}
-            <button class="text-red-500" onclick="removeFood(${d}, ${i})">刪除</button>
-          </li>`;
-        });
-        html += `</ul>
-          <div class="mt-2">
-            <input class="border p-1" placeholder="品項" id="item_day${d}">
-            <input class="border p-1" type="number" placeholder="價格" id="price_day${d}">
-            <button class="bg-green-500 text-white px-2 py-1 rounded" onclick="addFood(${d})">新增</button>
-          </div>
-        </div>`;
-        container.innerHTML += html;
-      }
-    }
-    window.updateRestaurantName = async function(day) {
-      const ref = doc(db, "public_weekly_menu", `day${day}`);
-      const name = document.getElementById(`restaurant_day${day}`).value.trim();
-      await updateDoc(ref, { restaurant: name });
-      showMessage(`星期${day} 餐廳更新成功`);
-    };
-    window.addFood = async function(day) {
-      const ref = doc(db, "public_weekly_menu", `day${day}`);
-      const name = document.getElementById(`item_day${day}`).value.trim();
-      const price = parseInt(document.getElementById(`price_day${day}`).value);
-      if (!name || isNaN(price)) return showMessage("請輸入品項與價格");
-      await updateDoc(ref, { items: arrayUnion({ name, price }) });
-      showMessage(`新增成功: ${name} $${price}`);
-    };
-    window.removeFood = async function(day, index) {
-      const item = weeklyMenuData[day].items[index];
-      const ref = doc(db, "public_weekly_menu", `day${day}`);
-      await updateDoc(ref, { items: arrayRemove(item) });
-      showMessage(`刪除 ${item.name}`);
-    };
-
-    // ==============================
-    // 🚀 學生：今日菜單 + 下單
-    // ==============================
-    function renderTodayMenu() {
-      const today = new Date().getDay(); // 0=週日, 1=週一...
-      if (today < 1 || today > 5) {
-        document.getElementById("todayMenuArea").innerHTML = "<p>今天沒有供餐！</p>";
-        return;
-      }
-      const data = weeklyMenuData[today] || { restaurant: "", items: [] };
-      let html = `<h3 class="font-bold">今日餐廳：${data.restaurant || "未設定"}</h3>
-        <label>座號：<input id="seatNumberInput" class="border p-1 w-20"></label>
-        <div>`;
-      data.items.forEach((item, i) => {
-        html += `
-          <label>
-            <input type="checkbox" id="item_${i}"> ${item.name} $${item.price}
-            <input type="number" id="qty_${i}" class="border w-16" min="1" value="1">
-          </label><br>`;
-      });
-      html += `</div>
-        <button class="bg-green-500 text-white px-2 py-1 rounded mt-2" onclick="submitTodayOrder(${today})">送出訂單</button>`;
-      document.getElementById("todayMenuArea").innerHTML = html;
-    }
-    window.submitTodayOrder = async function(day) {
-      const seat = document.getElementById("seatNumberInput").value.trim();
-      if (!seat) return showMessage("請輸入座號！");
-      const data = weeklyMenuData[day];
-      let items = [];
-      let total = 0;
-      data.items.forEach((item, i) => {
-        if (document.getElementById(`item_${i}`).checked) {
-          const qty = parseInt(document.getElementById(`qty_${i}`).value) || 1;
-          items.push({ name: item.name, price: item.price, qty });
-          total += item.price * qty;
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
-      });
-      if (items.length === 0) return showMessage("請至少選一項餐點");
-      const order = { seat, items, total, time: serverTimestamp() };
-      const ref = doc(db, "public_daily_orders", new Date().toISOString().slice(0,10));
-      const snap = await getDoc(ref);
-      let dataObj = snap.exists() ? snap.data() : { orders: {} };
-      dataObj.orders[seat] = order;
-      await setDoc(ref, dataObj);
-      showMessage("訂單送出成功！");
-    };
-
-    // ==============================
-    // 🚀 管理員：監聽今日訂單
-    // ==============================
-    function initializeOrderListener() {
-      const ref = doc(db, "public_daily_orders", new Date().toISOString().slice(0,10));
-      onSnapshot(ref, snapshot => {
-        if (snapshot.exists()) {
-          todayOrders = snapshot.data().orders;
-          renderOrderList();
+        .container {
+            animation: fadeIn 1s ease;
         }
-      });
-    }
-    function renderOrderList() {
-      const container = document.getElementById("orderList");
-      container.innerHTML = "";
-      let total = 0, count = 0;
-      Object.values(todayOrders).forEach(order => {
-        container.innerHTML += `<p>座號${order.seat}: ${order.items.map(i=>`${i.name}x${i.qty}`).join(", ")} = $${order.total}</p>`;
-        total += order.total;
-        count++;
-      });
-      container.innerHTML += `<p class="font-bold">總金額：$${total} 平均：$${(total/count||0).toFixed(1)}</p>`;
-    }
-
-    // ==============================
-    // 🚀 管理員登入檢查
-    // ==============================
-    window.checkAdminPassword = function() {
-      const input = document.getElementById("adminPassword").value;
-      if (input === ADMIN_PASSWORD) {
-        showMessage("登入成功！");
-        toggleArea("adminMenu");
-      } else {
-        showMessage("密碼錯誤！");
-      }
-    };
-
-    // ==============================
-    // 🚀 初始化
-    // ==============================
-    window.onload = async () => {
-      await populateInitialDayDocs();
-      initializeMenuListener();
-      initializeOrderListener();
-      renderTodayMenu();
-    };
-  </script>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .hidden {
+            display: none !important;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
-<body class="bg-gray-100">
-  <div class="p-4">
-    <h1 class="text-2xl font-bold">學餐系統</h1>
-    <button onclick="toggleArea('studentMenu')" class="bg-green-500 text-white px-2 py-1 m-1 rounded">學生訂餐</button>
-    <button onclick="toggleArea('adminLogin')" class="bg-blue-500 text-white px-2 py-1 m-1 rounded">管理員</button>
-  </div>
+<body class="flex items-center justify-center min-h-screen p-4">
 
-  <!-- 學生訂餐區 -->
-  <div id="studentMenu" class="area hidden p-4">
-    <h2 class="text-xl font-bold mb-2">今日菜單</h2>
-    <div id="todayMenuArea"></div>
-  </div>
-
-  <!-- 管理員登入 -->
-  <div id="adminLogin" class="area hidden p-4">
-    <h2 class="text-xl font-bold mb-2">管理員登入</h2>
-    <input type="password" id="adminPassword" class="border p-1">
-    <button onclick="checkAdminPassword()" class="bg-blue-500 text-white px-2 py-1 rounded">登入</button>
-  </div>
-
-  <!-- 管理員後台 -->
-  <div id="adminMenu" class="area hidden p-4">
-    <h2 class="text-xl font-bold mb-2">後台管理</h2>
-    <h3 class="font-bold">菜單編輯</h3>
-    <div id="menuEditorArea"></div>
-    <h3 class="font-bold mt-4">今日訂單</h3>
-    <div id="orderList"></div>
-  </div>
-
-  <!-- 訊息 Modal -->
-  <div id="messageBox" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="bg-white p-4 rounded shadow">
-      <p id="messageText"></p>
-      <button id="closeMessageBtn" class="mt-2 bg-gray-500 text-white px-2 py-1 rounded">關閉</button>
+<div class="container bg-white bg-opacity-80 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl text-center">
+    <div class="flex items-center justify-center mb-6">
+        <span class="text-3xl sm:text-4xl mr-2">🍱</span>
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">班級訂餐系統</h1>
     </div>
-  </div>
+
+    <!-- Message box -->
+    <div id="messageBox" class="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm text-center">
+            <p id="messageText" class="text-lg font-medium text-gray-700 mb-4"></p>
+            <button id="closeMessageBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition-all transform hover:scale-105">確定</button>
+        </div>
+    </div>
+
+    <!-- User area -->
+    <div id="userArea" class="space-y-6">
+        <button id="viewWeeklyMenu" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            查看本週餐廳
+        </button>
+        <div id="weeklyMenuDisplay" class="hidden text-left bg-gray-50 p-4 rounded-lg shadow-inner"></div>
+        <div id="orderArea" class="mt-6 text-left"></div>
+    </div>
+
+    <!-- Admin login area -->
+    <div id="adminLoginArea" class="hidden space-y-4">
+        <h3 class="text-2xl font-bold text-gray-700">管理員登入</h3>
+        <input type="password" id="adminPassword" placeholder="請輸入密碼" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <button id="adminLoginBtn" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            登入
+        </button>
+        <button id="returnToUserBtn" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            返回使用者介面
+        </button>
+    </div>
+
+    <!-- Admin main menu area -->
+    <div id="adminArea" class="space-y-6 hidden">
+        <h3 class="text-2xl font-bold text-gray-700">管理員主選單</h3>
+        <button id="viewOrdersBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            查看今日訂單列表
+        </button>
+        <button id="editMenuBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            設定本週菜單
+        </button>
+        <button id="returnToUserFromAdminMenu" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            返回使用者介面
+        </button>
+    </div>
+
+    <!-- Admin: Menu Editor area -->
+    <div id="menuEditorArea" class="space-y-6 hidden">
+        <h3 class="text-2xl font-bold text-gray-700">管理員：設定本週菜單</h3>
+        <div id="dayMenus" class="space-y-6"></div>
+        <button id="returnToAdminMenuFromEditor" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            返回管理員主選單
+        </button>
+    </div>
+
+    <!-- Admin: Order List area -->
+    <div id="orderListArea" class="space-y-6 hidden">
+        <h3 class="text-2xl font-bold text-gray-700">今日訂單列表</h3>
+        <div id="summaryArea" class="p-4 bg-yellow-100 rounded-lg shadow-md font-semibold text-gray-800">
+            <p id="totalPriceDisplay">全班總價：$0.00</p>
+            <p id="averagePriceDisplay">每人均價：$0.00</p>
+        </div>
+        <div id="ordersTable" class="bg-white p-4 rounded-lg shadow-md overflow-x-auto"></div>
+        <div class="flex gap-2 justify-center">
+            <button id="exportExcelBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded">匯出 Excel</button>
+            <button id="exportCsvBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">匯出 CSV</button>
+        </div>
+        <button id="returnToAdminMenuFromOrders" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            返回管理員主選單
+        </button>
+    </div>
+
+    <div class="mt-6 pt-6 border-t border-gray-200">
+        <button id="toggleAdminBtn" class="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            切換到管理員模式
+        </button>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, collection, setDoc, deleteDoc, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+// 設定 Firebase Debug
+setLogLevel('debug');
+
+const ADMIN_PASSWORD = "1234";
+const dayNames = ["", "週一", "週二", "週三", "週四", "週五"];
+
+let weeklyMenuData = {};
+let dailyOrdersData = {};
+let db, auth, userId;
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAPnTUu5NFB-HylHLEYkCKfT_a51XxDkb0",
+  authDomain: "ordering-system-66232.firebaseapp.com",
+  projectId: "ordering-system-66232",
+  storageBucket: "ordering-system-66232.appspot.com",
+  messagingSenderId: "814499187803",
+  appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
+};
+
+const app = initializeApp(firebaseConfig);
+db = getFirestore(app);
+auth = getAuth(app);
+
+signInAnonymously(auth).then(() => {
+    userId = auth.currentUser.uid;
+    initializeListeners();
+}).catch(e => showMessage("登入失敗：" + e));
+
+async function populateInitialDayDocs() {
+    const initialData = {
+        '1': { restaurant: "蝦米飯", items: [] },
+        '2': { restaurant: "相撲咖哩", items: [] },
+        '3': { restaurant: "八方雲集", items: [] },
+        '4': { restaurant: "麥當勞", items: [] },
+        '5': { restaurant: "祺仙館", items: [] }
+    };
+    for (let d=1; d<=5; d++){
+        const ref = doc(db, `public_weekly_menu/day${d}`);
+        try{ await setDoc(ref, initialData[d], {merge:true}); }catch(e){console.error(e);}
+    }
+}
+
+function initializeListeners() {
+    for(let d=1; d<=5; d++){
+        const ref = doc(db, `public_weekly_menu/day${d}`);
+        onSnapshot(ref, docSnap=>{
+            weeklyMenuData[d] = docSnap.exists()? docSnap.data() : {restaurant:"未設定", items:[]};
+            renderTodayMenu();
+            renderMenuEditor();
+        });
+    }
+
+    const today = new Date().toISOString().slice(0,10);
+    const q = query(collection(db, `public_daily_orders/${today}/orders`));
+    onSnapshot(q, snapshot=>{
+        dailyOrdersData = {};
+        snapshot.forEach(doc=> dailyOrdersData[doc.id]=doc.data());
+        renderOrderList();
+    });
+}
+
+// --- User functions ---
+document.getElementById("viewWeeklyMenu").addEventListener("click",()=>{
+    let html="<h3 class='text-xl font-semibold mb-4'>本週餐廳</h3><ul class='space-y-2'>";
+    for(let d=1; d<=5; d++){
+        const r = weeklyMenuData[d]? weeklyMenuData[d].restaurant:"未設定";
+        html += `<li class="border-b border-gray-200 pb-2">${dayNames[d]}：<span class="font-medium">${r}</span></li>`;
+    }
+    html+="</ul>";
+    const display = document.getElementById("weeklyMenuDisplay");
+    display.innerHTML = html;
+    display.classList.toggle("hidden");
+});
+
+function renderTodayMenu(){
+    const today = new Date().getDay();
+    const area = document.getElementById("orderArea");
+    if(today<1 || today>5){ area.innerHTML="<p class='text-red-500 font-semibold'>今天沒有供餐</p>"; return;}
+    const dailyMenu = weeklyMenuData[today];
+    if(!dailyMenu || !dailyMenu.items.length){
+        area.innerHTML=`<p class="text-red-500 font-semibold">${dayNames[today]} 尚未設定餐點</p>`;
+        return;
+    }
+
+    let html=`<h3 class="text-2xl font-bold text-gray-700 mb-4">今日餐點：${dailyMenu.restaurant}</h3>
+    <div class="mb-4">
+        <label for="seatNumber" class="block text-gray-700 font-semibold mb-1">請輸入座號：</label>
+        <input type="number" id="seatNumber" placeholder="座號" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+    </div>
+    <div class="space-y-4">`;
+
+    dailyMenu.items.forEach((f, idx)=>{
+        const priceStr = (typeof f.price==="number"?f.price:f.price||0).toFixed(2);
+        html+=`
+        <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg shadow-sm">
+            <label class="flex-grow flex items-center">
+                <input type="checkbox" id="food${idx}" class="form-checkbox h-5 w-5 text-indigo-600 rounded-md transition-all">
+                <span class="ml-3 text-gray-700 font-medium">${f.name}</span>
+                <span class="ml-auto font-semibold text-gray-800">$${priceStr}</span>
+            </label>
+            <div class="ml-4 flex items-center">
+                <span class="text-gray-600 mr-2">數量:</span>
+                <input type="number" min="1" value="1" id="qty${idx}" class="w-16 px-2 py-1 text-center border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+        </div>`;
+    });
+    html+=`</div><button onclick="submitTodayOrder(${today})" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">送出訂單</button>`;
+    area.innerHTML = html;
+}
+
+async function submitTodayOrder(day){
+    const seatNumber=document.getElementById('seatNumber').value.trim();
+    if(!seatNumber || isNaN(seatNumber)||seatNumber<1||seatNumber>31){showMessage("請輸入有效的座號 (1-31)！"); return;}
+
+    const dailyMenu=weeklyMenuData[day];
+    const order=[]; let total=0;
+    if(dailyMenu?.items){
+        dailyMenu.items.forEach((f,idx)=>{
+            if(document.getElementById(`food${idx}`).checked){
+                const qty=parseInt(document.getElementById(`qty${idx}`).value)||1;
+                order.push({name:f.name, price:Number(f.price), qty});
+                total+=Number(f.price)*qty;
+            }
+        });
+    }
+    if(order.length===0){showMessage("請至少選擇一項餐點！"); return;}
+
+    const today=new Date().toISOString().slice(0,10);
+    const orderDocRef=doc(db, `public_daily_orders/${today}/orders`, seatNumber);
+    const newOrder={
+        seatNumber:Number(seatNumber),
+        items:order,
+        totalPrice:Number(total.toFixed(2)),
+        orderDay:day,
+        timestamp:serverTimestamp()
+    };
+    try{
+        await setDoc(orderDocRef,newOrder);
+        showMessage("訂單送出成功！");
+    }catch(e){console.error(e); showMessage("訂單送出失敗："+e);}
+}
+
+// --- Admin functions ---
+document.getElementById("toggleAdminBtn").addEventListener("click",()=>{
+    document.getElementById("userArea").classList.add("hidden");
+    document.getElementById("adminLoginArea").classList.remove("hidden");
+});
+
+document.getElementById("returnToUserBtn").addEventListener("click",()=>{
+    document.getElementById("adminLoginArea").classList.add("hidden");
+    document.getElementById("userArea").classList.remove("hidden");
+});
+
+document.getElementById("adminLoginBtn").addEventListener("click",()=>{
+    const pwd=document.getElementById("adminPassword").value;
+    if(pwd!==ADMIN_PASSWORD){showMessage("密碼錯誤！"); return;}
+    document.getElementById("adminLoginArea").classList.add("hidden");
+    document.getElementById("adminArea").classList.remove("hidden");
+});
+
+document.getElementById("returnToUserFromAdminMenu").addEventListener("click",()=>{
+    document.getElementById("adminArea").classList.add("hidden");
+    document.getElementById("userArea").classList.remove("hidden");
+});
+
+// Menu Editor
+document.getElementById("editMenuBtn").addEventListener("click",()=>{
+    document.getElementById("adminArea").classList.add("hidden");
+    document.getElementById("menuEditorArea").classList.remove("hidden");
+});
+document.getElementById("returnToAdminMenuFromEditor").addEventListener("click",()=>{
+    document.getElementById("menuEditorArea").classList.add("hidden");
+    document.getElementById("adminArea").classList.remove("hidden");
+});
+
+function renderMenuEditor(){
+    const container=document.getElementById("dayMenus");
+    let html="";
+    for(let d=1; d<=5; d++){
+        const dayMenu=weeklyMenuData[d] || {restaurant:"", items:[]};
+        html+=`<div class="border p-4 rounded-lg bg-gray-50">
+            <h4 class="font-bold text-lg mb-2">${dayNames[d]}</h4>
+            <label>餐廳名稱: <input type="text" id="editorRestaurant${d}" value="${dayMenu.restaurant}" class="border px-2 py-1 rounded w-full mb-2"></label>
+            <div id="editorItems${d}" class="space-y-2">`;
+        dayMenu.items.forEach((f,idx)=>{
+            html+=`<div class="flex items-center gap-2">
+                <input type="text" id="editorItemName${d}_${idx}" value="${f.name}" placeholder="餐點名稱" class="border px-2 py-1 rounded flex-grow">
+                <input type="number" id="editorItemPrice${d}_${idx}" value="${f.price}" placeholder="價格" class="border px-2 py-1 rounded w-24">
+                <button onclick="removeMenuItem(${d},${idx})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">刪除</button>
+            </div>`;
+        });
+        html+=`</div>
+            <button onclick="addMenuItem(${d})" class="mt-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">新增餐點</button>
+            <button onclick="saveMenu(${d})" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">儲存</button>
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+window.addMenuItem = addMenuItem;
+window.removeMenuItem = removeMenuItem;
+window.saveMenu = saveMenu;
+
+function addMenuItem(day){
+    const itemsContainer=document.getElementById(`editorItems${day}`);
+    const idx=itemsContainer.children.length;
+    const div=document.createElement("div");
+    div.className="flex items-center gap-2";
+    div.innerHTML=`<input type="text" id="editorItemName${day}_${idx}" placeholder="餐點名稱" class="border px-2 py-1 rounded flex-grow">
+        <input type="number" id="editorItemPrice${day}_${idx}" placeholder="價格" class="border px-2 py-1 rounded w-24">
+        <button onclick="removeMenuItem(${day},${idx})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">刪除</button>`;
+    itemsContainer.appendChild(div);
+}
+
+function removeMenuItem(day,idx){
+    const itemsContainer=document.getElementById(`editorItems${day}`);
+    const child=itemsContainer.children[idx];
+    if(child) itemsContainer.removeChild(child);
+}
+
+async function saveMenu(day){
+    const restaurant=document.getElementById(`editorRestaurant${day}`).value;
+    const itemsContainer=document.getElementById(`editorItems${day}`);
+    const items=[];
+    for(let i=0;i<itemsContainer.children.length;i++){
+        const nameInp=document.getElementById(`editorItemName${day}_${i}`);
+        const priceInp=document.getElementById(`editorItemPrice${day}_${i}`);
+        if(nameInp && nameInp.value.trim()){
+            items.push({name:nameInp.value, price:Number(priceInp.value)||0});
+        }
+    }
+    try{
+        await setDoc(doc(db, `public_weekly_menu/day${day}`), {restaurant, items}, {merge:true});
+        showMessage("本週菜單已儲存！");
+    }catch(e){console.error(e); showMessage("儲存失敗："+e);}
+}
+
+// Orders List
+document.getElementById("viewOrdersBtn").addEventListener("click",()=>{
+    document.getElementById("adminArea").classList.add("hidden");
+    document.getElementById("orderListArea").classList.remove("hidden");
+});
+document.getElementById("returnToAdminMenuFromOrders").addEventListener("click",()=>{
+    document.getElementById("orderListArea").classList.add("hidden");
+    document.getElementById("adminArea").classList.remove("hidden");
+});
+
+function renderOrderList(){
+    const tableDiv=document.getElementById("ordersTable");
+    tableDiv.innerHTML="";
+    const orders=Object.values(dailyOrdersData).sort((a,b)=>a.seatNumber-b.seatNumber);
+    if(!orders.length){tableDiv.innerHTML="<p class='text-gray-500'>尚無訂單</p>";return;}
+    let html=`<table class="min-w-full border border-gray-300"><thead class="bg-gray-100"><tr><th class="border p-2">座號</th><th class="border p-2">餐點</th><th class="border p-2">總價</th></tr></thead><tbody>`;
+    let totalPrice=0;
+    orders.forEach(o=>{
+        const itemsStr=o.items.map(f=>`${f.name} x${f.qty}`).join(", ");
+        html+=`<tr><td class="border p-2 text-center">${o.seatNumber}</td><td class="border p-2">${itemsStr}</td><td class="border p-2 text-right">$${o.totalPrice.toFixed(2)}</td></tr>`;
+        totalPrice+=o.totalPrice;
+    });
+    html+="</tbody></table>";
+    tableDiv.innerHTML=html;
+    document.getElementById("totalPriceDisplay").textContent=`全班總價：$${totalPrice.toFixed(2)}`;
+    document.getElementById("averagePriceDisplay").textContent=`每人均價：$${(totalPrice/orders.length).toFixed(2)}`;
+}
+
+document.getElementById("exportExcelBtn").addEventListener("click",()=>{
+    exportTableToExcel("orders.xlsx");
+});
+document.getElementById("exportCsvBtn").addEventListener("click",()=>{
+    exportTableToCSV("orders.csv");
+});
+
+function exportTableToExcel(filename){
+    const table = document.querySelector("#ordersTable table");
+    if(!table){showMessage("無資料可匯出");return;}
+    const wb = XLSX.utils.table_to_book(table,{sheet:"訂單"});
+    XLSX.writeFile(wb, filename);
+}
+function exportTableToCSV(filename){
+    const table = document.querySelector("#ordersTable table");
+    if(!table){showMessage("無資料可匯出");return;}
+    const wb = XLSX.utils.table_to_book(table,{sheet:"訂單"});
+    XLSX.writeFile(wb, filename,{bookType:"csv"});
+}
+
+// --- Utility ---
+function showMessage(msg){
+    const box=document.getElementById("messageBox");
+    document.getElementById("messageText").textContent=msg;
+    box.classList.remove("hidden");
+}
+document.getElementById("closeMessageBtn").addEventListener("click",()=>{
+    document.getElementById("messageBox").classList.add("hidden");
+});
+
+// 初始化日菜單
+populateInitialDayDocs();
+</script>
+
 </body>
 </html>
