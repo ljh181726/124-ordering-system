@@ -1,10 +1,14 @@
+你是北七嗎 都用我的只有要改的才改
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>訂餐系統 -外訂版</title>
+    <!-- Use Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Google Fonts Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -29,20 +33,28 @@
             display: none !important;
         }
     </style>
+
+    <!-- SheetJS for Excel/CSV export (load before module script so XLSX is available) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main container (kept your original structure) -->
     <div class="container bg-white bg-opacity-80 p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-2xl text-center">
         <div class="flex items-center justify-center mb-6">
             <span class="text-3xl sm:text-4xl mr-2">🍱</span>
             <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">班級訂餐系統</h1>
         </div>
+
+        <!-- Message box -->
         <div id="messageBox" class="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center p-4 hidden">
             <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm text-center">
                 <p id="messageText" class="text-lg font-medium text-gray-700 mb-4"></p>
                 <button id="closeMessageBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition-all transform hover:scale-105">確定</button>
             </div>
         </div>
+
+        <!-- User area -->
         <div id="userArea" class="space-y-6">
             <button id="viewWeeklyMenu" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
                 查看本週餐廳
@@ -50,6 +62,8 @@
             <div id="weeklyMenuDisplay" class="hidden text-left bg-gray-50 p-4 rounded-lg shadow-inner"></div>
             <div id="orderArea" class="mt-6 text-left"></div>
         </div>
+
+        <!-- Admin login area -->
         <div id="adminLoginArea" class="hidden space-y-4">
             <h3 class="text-2xl font-bold text-gray-700">管理員登入</h3>
             <input type="password" id="adminPassword" placeholder="請輸入密碼" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -60,6 +74,8 @@
                 返回使用者介面
             </button>
         </div>
+
+        <!-- Admin main menu area -->
         <div id="adminArea" class="space-y-6 hidden">
             <h3 class="text-2xl font-bold text-gray-700">管理員主選單</h3>
             <button id="viewOrdersBtn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
@@ -72,6 +88,8 @@
                 返回使用者介面
             </button>
         </div>
+
+        <!-- Admin: Menu Editor area -->
         <div id="menuEditorArea" class="space-y-6 hidden">
             <h3 class="text-2xl font-bold text-gray-700">管理員：設定本週菜單</h3>
             <div id="dayMenus" class="space-y-6"></div>
@@ -79,6 +97,8 @@
                 返回管理員主選單
             </button>
         </div>
+
+        <!-- Admin: Order List area -->
         <div id="orderListArea" class="space-y-6 hidden">
             <h3 class="text-2xl font-bold text-gray-700">今日訂單列表</h3>
             <div id="summaryArea" class="p-4 bg-yellow-100 rounded-lg shadow-md font-semibold text-gray-800">
@@ -94,6 +114,7 @@
                 返回管理員主選單
             </button>
         </div>
+
         <div class="mt-6 pt-6 border-t border-gray-200">
             <button id="toggleAdminBtn" class="bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
                 切換到管理員模式
@@ -101,12 +122,16 @@
         </div>
     </div>
 
+    <!-- Firebase SDKs and App Script -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, setDoc, query, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { 
+            getFirestore, doc, onSnapshot, collection, setDoc, query, deleteDoc, serverTimestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 
+        // Set Firebase debug log level
         setLogLevel('debug');
 
         const dayNames = ["", "週一", "週二", "週三", "週四", "週五"];
@@ -117,16 +142,16 @@
         let db;
         let auth;
         let userId;
-
         const firebaseConfig = {
-            apiKey: "AIzaSyAPnTUu5NFB-HylHLEYkCKfT_a51XxDkb0",
-            authDomain: "ordering-system-66232.firebaseapp.com",
-            projectId: "ordering-system-66232",
-            storageBucket: "ordering-system-66232.firebasestorage.app",
-            messagingSenderId: "814499187803",
-            appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
-        };
+  apiKey: "AIzaSyAPnTUu5NFB-HylHLEYkCKfT_a51XxDkb0",
+  authDomain: "ordering-system-66232.firebaseapp.com",
+  projectId: "ordering-system-66232",
+  storageBucket: "ordering-system-66232.firebasestorage.app",
+  messagingSenderId: "814499187803",
+  appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
+};
 
+        // Initialize Firebase
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
@@ -141,12 +166,14 @@
         } catch (e) {
             console.error("Firebase Initialization Error:", e);
         }
-
+        
+        // Initialize all Firestore listeners
         function initializeListeners() {
             initializeMenuListener();
             initializeOrderListener();
         }
 
+        // If a day doc doesn't exist, populate initial day docs
         async function populateInitialDayDocs() {
             const initialData = {
                 '1': { restaurant: "蝦米飯", items: [] },
@@ -155,9 +182,10 @@
                 '4': { restaurant: "麥當勞", items: [] },
                 '5': { restaurant: "祺仙館", items: [] }
             };
-            for (let d = 1; d <= 5; d++) {
-                const ref = doc(db, `public_weekly_menu/day${d}`);
+            for (let d = 1; d <=5; d++) {
+                const ref = doc(db, public_weekly_menu/day${d});
                 try {
+                    // only set when doc doesn't exist — onSnapshot handler will call this when needed
                     await setDoc(ref, initialData[d], { merge: true });
                 } catch (e) {
                     console.error("Error populating day doc: ", e);
@@ -165,28 +193,33 @@
             }
         }
 
+        // Initialize Firestore listener for the menu data (per-day docs)
         function initializeMenuListener() {
             for (let d = 1; d <= 5; d++) {
-                const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
+                const menuDocRef = doc(db, public_weekly_menu/day${d});
+
                 onSnapshot(menuDocRef, async (docSnap) => {
                     if (docSnap.exists() && docSnap.data()) {
                         weeklyMenuData[d] = docSnap.data();
                     } else {
+                        // If any day doc missing, create initial set (merge safe)
                         weeklyMenuData[d] = { restaurant: "未設定", items: [] };
                         await populateInitialDayDocs();
                     }
+                    // Always render UI after data is loaded or populated
                     renderTodayMenu();
                     renderMenuEditor();
                 }, (error) => {
-                    console.error("Error fetching menu day" + d, error);
-                    showMessage("無法即時更新菜單資料，請檢查網路。");
+                    console.error("Error fetching real-time menu data for day" + d + ":", error);
+                    showMessage("無法即時更新菜單資料，請檢查網路連線。");
                 });
             }
         }
-
+        
+        // Initialize Firestore listener for the daily orders
         function initializeOrderListener() {
             const today = new Date().toISOString().slice(0, 10);
-            const ordersRef = collection(db, `public_daily_orders/${today}/orders`);
+            const ordersRef = collection(db, public_daily_orders/${today}/orders);
             const q = query(ordersRef);
 
             onSnapshot(q, (querySnapshot) => {
@@ -196,10 +229,11 @@
                 });
                 renderOrderList();
             }, (error) => {
-                console.error("Error fetching orders:", error);
+                console.error("Error fetching real-time orders:", error);
             });
         }
 
+        // Display/toggle areas
         function toggleArea(area) {
             document.getElementById("userArea").classList.add("hidden");
             document.getElementById("adminArea").classList.add("hidden");
@@ -207,29 +241,34 @@
             document.getElementById("menuEditorArea").classList.add("hidden");
             document.getElementById("orderListArea").classList.add("hidden");
 
-            if (area === "user") document.getElementById("userArea").classList.remove("hidden");
-            else if (area === "adminMenu") document.getElementById("adminArea").classList.remove("hidden");
-            else if (area === "menuEditor") {
+            if (area === "user") {
+                document.getElementById("userArea").classList.remove("hidden");
+            } else if (area === "adminMenu") {
+                document.getElementById("adminArea").classList.remove("hidden");
+            } else if (area === "menuEditor") {
                 document.getElementById("menuEditorArea").classList.remove("hidden");
                 renderMenuEditor();
+            } else if (area === "orderList") {
+                document.getElementById("orderListArea").classList.remove("hidden");
+                renderOrderList();
             }
-            else if (area === "orderList") document.getElementById("orderListArea").classList.remove("hidden");
         }
 
+        // User: View weekly restaurants (keeps your original button behavior)
         document.getElementById("viewWeeklyMenu").addEventListener("click", () => {
             let html = "<h3 class='text-xl font-semibold mb-4'>本週餐廳</h3><ul class='space-y-2'>";
             for (let d = 1; d <= 5; d++) {
                 const restaurantName = weeklyMenuData[d] ? weeklyMenuData[d].restaurant : "未設定";
-                html += `<li class="border-b border-gray-200 pb-2">${dayNames[d]}：<span class="font-medium">${restaurantName}</span></li>`;
+                html += <li class="border-b border-gray-200 pb-2">${dayNames[d]}：<span class="font-medium">${restaurantName}</span></li>;
             }
             html += "</ul>";
-            const display = document.getElementById("weeklyMenuDisplay");
-            display.innerHTML = html;
-            display.classList.toggle("hidden");
+            document.getElementById("weeklyMenuDisplay").innerHTML = html;
+            document.getElementById("weeklyMenuDisplay").classList.toggle("hidden");
         });
 
+        // User: Today's menu (show prices with two decimals)
         function renderTodayMenu() {
-            const today = new Date().getDay();
+            const today = new Date().getDay(); // 0=Sun
             const area = document.getElementById("orderArea");
             if (today < 1 || today > 5) {
                 area.innerHTML = "<p class='text-red-500 font-semibold'>今天沒有供餐</p>";
@@ -237,20 +276,20 @@
             }
             const dailyMenu = weeklyMenuData[today];
             if (!dailyMenu || !dailyMenu.items || dailyMenu.items.length === 0) {
-                area.innerHTML = `<p class="text-red-500 font-semibold">${dayNames[today]} 尚未設定餐點</p>`;
+                area.innerHTML = <p class="text-red-500 font-semibold">${dayNames[today]} 尚未設定餐點</p>;
                 return;
             }
 
-            let html = `<h3 class="text-2xl font-bold text-gray-700 mb-4">今日餐點：${dailyMenu.restaurant}</h3>
+            let html = <h3 class="text-2xl font-bold text-gray-700 mb-4">今日餐點：${dailyMenu.restaurant}</h3>
             <div class="mb-4">
                 <label for="seatNumber" class="block text-gray-700 font-semibold mb-1">請輸入座號：</label>
                 <input type="number" id="seatNumber" placeholder="座號" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
-            <div class="space-y-4">`;
-
+            <div class="space-y-4">;
             dailyMenu.items.forEach((f, idx) => {
+                // show price with two decimals
                 const priceStr = typeof f.price === 'number' ? f.price.toFixed(2) : Number(f.price || 0).toFixed(2);
-                html += `
+                html += 
                 <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg shadow-sm">
                     <label class="flex-grow flex items-center">
                         <input type="checkbox" id="food${idx}" class="form-checkbox h-5 w-5 text-indigo-600 rounded-md transition-all">
@@ -261,40 +300,43 @@
                         <span class="text-gray-600 mr-2">數量:</span>
                         <input type="number" min="1" value="1" id="qty${idx}" class="w-16 px-2 py-1 text-center border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
-                </div>`;
+                </div>;
             });
-
-            html += `</div>
-            <button onclick="submitTodayOrder(${today})" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
+            html += </div><button onclick="submitTodayOrder(${today})" class="mt-6 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-md">
                 送出訂單
-            </button>`;
+            </button>;
             area.innerHTML = html;
         }
 
+        // Submit today's order (use serverTimestamp)
         async function submitTodayOrder(day) {
             const seatNumber = document.getElementById('seatNumber').value.trim();
             if (!seatNumber || isNaN(seatNumber) || seatNumber < 1 || seatNumber > 31) {
                 showMessage("請輸入有效的座號 (1-31)！");
                 return;
             }
+
             const dailyMenu = weeklyMenuData[day];
             const order = [];
             let total = 0;
             if (dailyMenu && dailyMenu.items) {
                 dailyMenu.items.forEach((f, idx) => {
-                    if (document.getElementById(`food${idx}`).checked) {
-                        const qty = parseInt(document.getElementById(`qty${idx}`).value) || 1;
+                    if (document.getElementById(food${idx}).checked) {
+                        const qty = parseInt(document.getElementById(qty${idx}).value) || 1;
                         order.push({ name: f.name, price: Number(f.price), qty });
                         total += Number(f.price) * qty;
                     }
                 });
             }
+
             if (order.length === 0) {
                 showMessage("請至少選擇一項餐點！");
                 return;
             }
+
             const today = new Date().toISOString().slice(0, 10);
-            const orderDocRef = doc(db, `public_daily_orders/${today}/orders`, seatNumber);
+            const orderDocRef = doc(db, public_daily_orders/${today}/orders, seatNumber);
+
             const newOrder = {
                 seatNumber: Number(seatNumber),
                 items: order,
@@ -302,54 +344,317 @@
                 orderDay: day,
                 timestamp: serverTimestamp()
             };
+
             try {
                 await setDoc(orderDocRef, newOrder);
-                const orderSummary = `座號 ${seatNumber}，已送出訂單！總金額：${newOrder.totalPrice} 元\n` + order.map(o => `${o.name} x ${o.qty}`).join("\n");
+                const orderSummary = 座號 ${seatNumber}，已送出訂單！總金額：${newOrder.totalPrice} 元\n + order.map(o => ${o.name} x ${o.qty}).join("\n");
                 showMessage(orderSummary);
+                // 清空勾選與座號欄位，避免重複送單
                 document.getElementById('seatNumber').value = '';
+                // we re-render when onSnapshot updates, so it's ok
             } catch (e) {
                 console.error("Error submitting order: ", e);
                 showMessage("送出訂單時發生錯誤。");
             }
         }
 
-        // 後續功能包括 renderMenuEditor, updateRestaurantName, addFood, removeFood, deleteOrder, renderOrderList, exportToExcel, exportToCSV
-        // 以及 message box、管理員登入、按鈕事件綁定保持原樣
-        // 為篇幅限制，這個版本已超過 500 行並完整包含使用者訂餐及管理員功能核心
+        // Admin: Set menu editor rendering & dynamic binding
+        function renderMenuEditor() {
+            let html = "";
+            for (let d = 1; d <= 5; d++) {
+                const dailyMenu = weeklyMenuData[d] || { restaurant: "", items: [] };
+                // use step="0.01" for price inputs to allow decimals
+                html += 
+                <div class="p-4 bg-white rounded-lg shadow-md space-y-4">
+                    <h4 class="text-lg font-semibold text-gray-700">${dayNames[d]}</h4>
+                    <div class="flex items-center gap-2">
+                        <input type="text" placeholder="餐廳名稱" value="${dailyMenu.restaurant || ''}" id="restaurantName${d}" class="flex-grow px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button class="update-restaurant-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105" data-day="${d}">
+                            更新餐廳
+                        </button>
+                    </div>
+                    <div class="mt-4 border-t pt-4">
+                        <h5 class="font-semibold text-gray-600 mb-2">餐點品項</h5>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="text" placeholder="餐點名稱" id="foodName${d}" class="flex-grow px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <input type="number" step="0.01" placeholder="價格" id="foodPrice${d}" class="w-24 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button class="add-food-btn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105" data-day="${d}">
+                                新增餐點
+                            </button>
+                        </div>
+                    </div>
+                    <ul id="listDay${d}" class="space-y-2 text-left">;
+                (dailyMenu.items || []).forEach((f, i) => {
+                    const priceStr = typeof f.price === 'number' ? f.price.toFixed(2) : Number(f.price || 0).toFixed(2);
+                    html += 
+                    <li class="flex justify-between items-center py-2 px-3 bg-gray-100 rounded-md shadow-sm">
+                        <span>${f.name} - $${priceStr}</span>
+                        <button class="remove-food-btn text-red-500 hover:text-red-700" data-day="${d}" data-index="${i}" aria-label="刪除餐點">
+                            🗑️
+                        </button>
+                    </li>;
+                });
+                html += </ul></div>;
+            }
+            document.getElementById("dayMenus").innerHTML = html;
 
-        function showMessage(msg) {
-            const box = document.getElementById('messageBox');
-            document.getElementById('messageText').innerText = msg;
-            box.classList.remove('hidden');
+            // Bind event listeners dynamically after rendering
+            document.querySelectorAll('.update-restaurant-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const day = event.target.dataset.day;
+                    updateRestaurantName(day);
+                });
+            });
+
+            document.querySelectorAll('.add-food-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const day = event.target.dataset.day;
+                    addFood(day);
+                });
+            });
+
+            document.querySelectorAll('.remove-food-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const day = event.target.dataset.day;
+                    const index = event.target.dataset.index;
+                    removeFood(day, index);
+                });
+            });
+        }
+        
+        async function updateRestaurantName(day) {
+            const restaurantName = document.getElementById(restaurantName${day}).value.trim();
+            const currentItems = weeklyMenuData[day]?.items || [];
+            try {
+                await setDoc(doc(db, public_weekly_menu/day${day}), { restaurant: restaurantName, items: currentItems }, { merge: true });
+                showMessage("餐廳名稱已更新！");
+            } catch(e) {
+                console.error("Error updating restaurant:", e);
+                showMessage("更新餐廳時發生錯誤。");
+            }
         }
 
-        document.getElementById('closeMessageBtn').addEventListener('click', () => {
-            document.getElementById('messageBox').classList.add('hidden');
-        });
-
-        document.getElementById("toggleAdminBtn").addEventListener("click", () => {
-            toggleArea("adminLogin");
-            document.getElementById("adminLoginArea").classList.remove("hidden");
-        });
-
-        document.getElementById("adminLoginBtn").addEventListener("click", () => {
-            const pw = document.getElementById("adminPassword").value;
-            if (pw === ADMIN_PASSWORD) {
-                toggleArea("adminMenu");
-                document.getElementById("adminPassword").value = '';
+        async function addFood(day) {
+            const name = document.getElementById(foodName${day}).value.trim();
+            const price = parseFloat(document.getElementById(foodPrice${day}).value);
+            if (name && !isNaN(price) && price >= 0) {
+                const newItems = [...(weeklyMenuData[day]?.items || []) , { name, price }];
+                try {
+                    await setDoc(doc(db, public_weekly_menu/day${day}), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
+                    document.getElementById(foodName${day}).value = "";
+                    document.getElementById(foodPrice${day}).value = "";
+                    showMessage("餐點已新增！");
+                } catch(e) {
+                    console.error("Error adding food:", e);
+                    showMessage("新增餐點時發生錯誤。");
+                }
             } else {
-                showMessage("密碼錯誤！");
+                showMessage("請輸入有效的餐點名稱與價格！");
             }
+        }
+        
+        async function removeFood(day, i) {
+            if (!confirm("確定要刪除此餐點嗎？")) return;
+            const newItems = [...(weeklyMenuData[day]?.items || [])];
+            newItems.splice(i, 1);
+            try {
+                await setDoc(doc(db, public_weekly_menu/day${day}), { restaurant: weeklyMenuData[day]?.restaurant || "新餐廳", items: newItems }, { merge: true });
+                showMessage("餐點已刪除！");
+            } catch(e) {
+                console.error("Error removing food:", e);
+                showMessage("刪除餐點時發生錯誤。");
+            }
+        }
+        
+        // 管理員：刪除訂單（加確認）
+        async function deleteOrder(seatNumber) {
+            if (!confirm(確定要刪除座號 ${seatNumber} 的訂單嗎？)) return;
+            const today = new Date().toISOString().slice(0, 10);
+            try {
+                await deleteDoc(doc(db, public_daily_orders/${today}/orders, seatNumber));
+                showMessage(座號 ${seatNumber} 的訂單已刪除！);
+            } catch (e) {
+                console.error("Error deleting order:", e);
+                showMessage("刪除訂單時發生錯誤。");
+            }
+        }
+
+        // Render order list with delete button and export buttons
+        function renderOrderList() {
+            let total = 0;
+            let orderCount = 0;
+            const ordersTable = document.getElementById('ordersTable');
+            let tableHtml = <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">座號</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">餐點明細</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">總價</th>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">;
+
+            const sortedSeatNumbers = Object.keys(dailyOrdersData).sort((a, b) => Number(a) - Number(b));
+
+            if (sortedSeatNumbers.length === 0) {
+                tableHtml += <tr><td colspan="4" class="px-4 py-2 text-center text-gray-500">尚無訂單</td></tr>;
+            } else {
+                sortedSeatNumbers.forEach(seatNumber => {
+                    const orderData = dailyOrdersData[seatNumber];
+                    const itemsList = orderData.items.map(item => ${item.name} x ${item.qty} ($${(item.price*item.qty).toFixed(2)})).join('<br>');
+                    
+                    total += orderData.totalPrice || 0;
+                    orderCount++;
+
+                    tableHtml += 
+                    <tr>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">${seatNumber}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${itemsList}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">$${(orderData.totalPrice || 0).toFixed(2)}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                            <button onclick="deleteOrder('${seatNumber}')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>;
+                });
+            }
+            
+            tableHtml += </tbody></table>;
+            ordersTable.innerHTML = tableHtml;
+
+            const average = orderCount > 0 ? (total / orderCount).toFixed(2) : 0;
+            document.getElementById('totalPriceDisplay').textContent = 全班總價：$${total.toFixed(2)};
+            document.getElementById('averagePriceDisplay').textContent = 訂單數：${orderCount}，每人均價：$${average};
+        }
+        
+        // Export to Excel / CSV using SheetJS
+        function exportToExcel() {
+            const today = new Date().toISOString().slice(0, 10);
+            const data = [];
+            const sortedSeatNumbers = Object.keys(dailyOrdersData).sort((a,b)=>Number(a)-Number(b));
+            sortedSeatNumbers.forEach(seatNumber => {
+                const orderData = dailyOrdersData[seatNumber];
+                orderData.items.forEach(item => {
+                    data.push({
+                        座號: seatNumber,
+                        餐點: item.name,
+                        數量: item.qty,
+                        單價: Number(item.price).toFixed(2),
+                        小計: (item.price * item.qty).toFixed(2),
+                        總價: (orderData.totalPrice || 0).toFixed(2)
+                    });
+                });
+            });
+            if (data.length === 0) {
+                alert("尚無訂單，無法匯出！");
+                return;
+            }
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "今日訂單");
+            const restaurantToday = (() => {
+                const weekday = new Date().getDay();
+                return (weekday >=1 && weekday <=5 && weeklyMenuData[weekday]) ? weeklyMenuData[weekday].restaurant : "";
+            })();
+            const filename = restaurantToday ? 訂單_${today}_${restaurantToday}.xlsx : 訂單_${today}.xlsx;
+            XLSX.writeFile(workbook, filename);
+        }
+
+        function exportToCSV() {
+            const today = new Date().toISOString().slice(0, 10);
+            const data = [];
+            const sortedSeatNumbers = Object.keys(dailyOrdersData).sort((a,b)=>Number(a)-Number(b));
+            sortedSeatNumbers.forEach(seatNumber => {
+                const orderData = dailyOrdersData[seatNumber];
+                orderData.items.forEach(item => {
+                    data.push({
+                        座號: seatNumber,
+                        餐點: item.name,
+                        數量: item.qty,
+                        單價: Number(item.price).toFixed(2),
+                        小計: (item.price * item.qty).toFixed(2),
+                        總價: (orderData.totalPrice || 0).toFixed(2)
+                    });
+                });
+            });
+            if (data.length === 0) {
+                alert("尚無訂單，無法匯出！");
+                return;
+            }
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const csv = XLSX.utils.sheet_to_csv(worksheet);
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            const restaurantToday = (() => {
+                const weekday = new Date().getDay();
+                return (weekday >=1 && weekday <=5 && weeklyMenuData[weekday]) ? weeklyMenuData[weekday].restaurant : "";
+            })();
+            const filename = restaurantToday ? 訂單_${today}_${restaurantToday}.csv : 訂單_${today}.csv;
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+        // Custom message box functions (keeps your original message UI)
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const closeMessageBtn = document.getElementById('closeMessageBtn');
+
+        function showMessage(message) {
+            messageText.innerText = message;
+            messageBox.classList.remove('hidden');
+        }
+
+        closeMessageBtn.addEventListener('click', () => {
+            messageBox.classList.add('hidden');
         });
 
-        document.getElementById("returnToUserBtn").addEventListener("click", () => toggleArea("user"));
-        document.getElementById("returnToUserFromAdminMenu").addEventListener("click", () => toggleArea("user"));
+        // Event listeners for UI buttons
+        window.onload = function() {
+            document.getElementById('toggleAdminBtn').addEventListener('click', toggleAdminLogin);
+            document.getElementById('adminLoginBtn').addEventListener('click', checkAdminPassword);
+            document.getElementById('returnToUserBtn').addEventListener('click', () => toggleArea('user'));
 
-        document.getElementById("viewOrdersBtn").addEventListener("click", () => toggleArea("orderList"));
-        document.getElementById("editMenuBtn").addEventListener("click", () => toggleArea("menuEditor"));
+            document.getElementById('viewOrdersBtn').addEventListener('click', () => toggleArea('orderList'));
+            document.getElementById('editMenuBtn').addEventListener('click', () => toggleArea('menuEditor'));
+            document.getElementById('returnToUserFromAdminMenu').addEventListener('click', () => toggleArea('user'));
+            document.getElementById('returnToAdminMenuFromEditor').addEventListener('click', () => toggleArea('adminMenu'));
+            document.getElementById('returnToAdminMenuFromOrders').addEventListener('click', () => toggleArea('adminMenu'));
 
-        document.getElementById("returnToAdminMenuFromEditor").addEventListener("click", () => toggleArea("adminMenu"));
-        document.getElementById("returnToAdminMenuFromOrders").addEventListener("click", () => toggleArea("adminMenu"));
+            // export buttons
+            document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+            document.getElementById('exportCsvBtn').addEventListener('click', exportToCSV);
+        };
+
+        // Admin toggle & password
+        function toggleAdminLogin() {
+            document.getElementById("userArea").classList.add("hidden");
+            document.getElementById("adminArea").classList.add("hidden");
+            document.getElementById("adminLoginArea").classList.remove("hidden");
+            document.getElementById("menuEditorArea").classList.add("hidden");
+            document.getElementById("orderListArea").classList.add("hidden");
+        }
+
+        function checkAdminPassword() {
+            const password = document.getElementById("adminPassword").value;
+            if (password === ADMIN_PASSWORD) {
+                toggleArea('adminMenu');
+            } else {
+                showMessage("密碼錯誤，請重新輸入。");
+            }
+        }
+
+        // Make functions global for inline onclick
+        window.submitTodayOrder = submitTodayOrder;
+        window.updateRestaurantName = updateRestaurantName;
+        window.addFood = addFood;
+        window.removeFood = removeFood;
+        window.deleteOrder = deleteOrder;
+        window.exportToExcel = exportToExcel;
+        window.exportToCSV = exportToCSV;
+        
     </script>
 </body>
 </html>
