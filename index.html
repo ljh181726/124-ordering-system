@@ -149,6 +149,7 @@
   appId: "1:814499187803:web:6b2f6dbe5fa7e0ece3c37e"
 };
 
+        
         // Initialize Firebase
         try {
             const app = initializeApp(firebaseConfig);
@@ -156,7 +157,6 @@
             auth = getAuth(app);
             signInAnonymously(auth).then(() => {
                 userId = auth.currentUser.uid;
-                initializeListeners();
             }).catch(error => {
                 console.error("Anonymous sign-in failed:", error);
                 showMessage("登入失敗，無法連接資料庫。");
