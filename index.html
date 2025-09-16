@@ -166,53 +166,41 @@
         }
         
         // Initialize all Firestore listeners
-        function initializeListeners() {
-            initializeMenuListener();
-            initializeOrderListener();
-        }
+      function initializeMenuListener() {
+    for (let d = 1; d <= 5; d++) {
+        const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
 
-        // If a day doc doesn't exist, populate initial day docs
-        async function populateInitialDayDocs() {
-            const initialData = {
-                '1': { restaurant: "蝦米飯", items: [] },
-                '2': { restaurant: "相撲咖哩", items: [] },
-                '3': { restaurant: "八方雲集", items: [] },
-                '4': { restaurant: "麥當勞", items: [] },
-                '5': { restaurant: "祺仙館", items: [] }
-            };
-            for (let d = 1; d <=5; d++) {
-                const ref = doc(db, `public_weekly_menu/day${d}`);
-                try {
-                    // only set when doc doesn't exist — onSnapshot handler will call this when needed
-                    await setDoc(ref, initialData[d], { merge: true });
-                } catch (e) {
-                    console.error("Error populating day doc: ", e);
+        onSnapshot(menuDocRef, async (docSnap) => {
+            // 1️⃣ 先抓餐廳資料
+            if (docSnap.exists() && docSnap.data()) {
+                weeklyMenuData[d] = docSnap.data();
+            } else {
+                weeklyMenuData[d] = { restaurant: "未設定", items: [] };
+                await populateInitialDayDocs();
+            }
+
+            // 2️⃣ 再抓真正餐點資料（menu_data/menu/d/items）
+            try {
+                const menuDoc = await getDoc(doc(db, `menu_data/menu/${d}`));
+                if (menuDoc.exists()) {
+                    weeklyMenuData[d].items = menuDoc.data().items || [];
+                } else {
+                    weeklyMenuData[d].items = [];
                 }
+            } catch (e) {
+                console.error(`抓 menu_data/menu/${d} 資料失敗：`, e);
+                weeklyMenuData[d].items = [];
             }
-        }
 
-        // Initialize Firestore listener for the menu data (per-day docs)
-        function initializeMenuListener() {
-            for (let d = 1; d <= 5; d++) {
-                const menuDocRef = doc(db, `public_weekly_menu/day${d}`);
-
-                onSnapshot(menuDocRef, async (docSnap) => {
-                    if (docSnap.exists() && docSnap.data()) {
-                        weeklyMenuData[d] = docSnap.data();
-                    } else {
-                        // If any day doc missing, create initial set (merge safe)
-                        weeklyMenuData[d] = { restaurant: "未設定", items: [] };
-                        await populateInitialDayDocs();
-                    }
-                    // Always render UI after data is loaded or populated
-                    renderTodayMenu();
-                    renderMenuEditor();
-                }, (error) => {
-                    console.error("Error fetching real-time menu data for day" + d + ":", error);
-                    showMessage("無法即時更新菜單資料，請檢查網路連線。");
-                });
-            }
-        }
+            // 3️⃣ 更新 UI
+            renderTodayMenu();
+            renderMenuEditor();
+        }, (error) => {
+            console.error(`監聽 public_weekly_menu/day${d} 時出錯：`, error);
+            showMessage("無法即時更新菜單資料，請檢查網路連線。");
+        });
+    }
+}
         
         // Initialize Firestore listener for the daily orders
         function initializeOrderListener() {
